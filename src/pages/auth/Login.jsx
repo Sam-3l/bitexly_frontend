@@ -11,7 +11,7 @@ export default function Login() {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
-    user_type: "user",
+    user_type: "trader",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");

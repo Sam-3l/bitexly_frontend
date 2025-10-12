@@ -1,26 +1,24 @@
-import React from 'react';
+import React from "react";
+import RegistrationStepper from "../../components/auth/RegistrationStepper";
 
-const Register = () => {
-    return (
-        <div>
-            <h1>Register</h1>
-            <form>
-                <div>
-                    <label htmlFor="username">Username:</label>
-                    <input type="text" id="username" name="username" />
-                </div>
-                <div>
-                    <label htmlFor="email">Email:</label>
-                    <input type="email" id="email" name="email" />
-                </div>
-                <div>
-                    <label htmlFor="password">Password:</label>
-                    <input type="password" id="password" name="password" />
-                </div>
-                <button type="submit">Register</button>
-            </form>
+export default function Register() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-white px-4 py-10">
+      <div className="w-full max-w-4xl">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="Bitexly" className="w-12 h-12" />
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Bitexly</h1>
+              <p className="text-sm text-gray-500">Create an account to get started</p>
+            </div>
+          </div>
         </div>
-    );
-};
 
-export default Register;
+        <div className="bg-transparent">
+          <RegistrationStepper />
+        </div>
+      </div>
+    </div>
+  );
+}

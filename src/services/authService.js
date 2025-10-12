@@ -1,11 +1,11 @@
 import apiClient from "../utils/apiClient";
 
 const AuthService = {
-  // 🔹 Login
-  login: async (email, password, userType = "user") => {
+  // Login
+  login: async (email, password, userType = "trader") => {
     try {
       const response = await apiClient.post("/users/signin/", {
-        username: email, // backend still expects "username" field
+        username: email,
         password,
         user_type: userType,
       });
@@ -19,7 +19,7 @@ const AuthService = {
     }
   },
 
-  // 🔹 Register (send signup OTP)
+  // Register (send signup OTP)
   signup: async (data) => {
     try {
       const response = await apiClient.post("/users/signup/", data);
