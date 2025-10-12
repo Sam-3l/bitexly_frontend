@@ -31,7 +31,7 @@ const AuthService = {
     }
   },
 
-  // 🔹 Verify OTP
+  // Verify OTP
   verifyOtp: async (data) => {
     try {
       const response = await apiClient.post("/users/verify-otp/", data);
@@ -43,7 +43,7 @@ const AuthService = {
     }
   },
 
-  // 🔹 Complete Registration
+  // Complete Registration
   completeRegistration: async (data) => {
     try {
       const response = await apiClient.patch("/users/signup/", data);
@@ -55,7 +55,7 @@ const AuthService = {
     }
   },
 
-  // 🔹 Forgot Password
+  // Forgot Password
   forgotPassword: async (data) => {
     try {
       const response = await apiClient.post("/users/forgot-password/", data);
@@ -64,6 +64,18 @@ const AuthService = {
       throw (
         error.response?.data || { message: "Password reset failed. Try again." }
       );
+    }
+  },
+
+  // Refresh Token
+  refreshToken: async (refresh) => {
+    try {
+      const response = await apiClient.post("/users/token/refresh/", {
+        refresh,
+      });
+      return response.data.access;
+    } catch (error) {
+      throw error.response?.data || { message: "Token refresh failed" };
     }
   },
 };

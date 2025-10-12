@@ -1,5 +1,6 @@
 // src/routes/AppRoutes.jsx
 import { Routes, Route, Navigate } from "react-router-dom";
+import ProtectedRoute from "../components/common/ProtectedRoute";
 import { lazy, Suspense } from "react";
 
 // Lazy load pages for better performance
@@ -23,8 +24,15 @@ export default function AppRoutes() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
-        {/* Main App Routes */}
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              {/* Main App Routes */}
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Default Redirect */}
         <Route path="*" element={<Navigate to="/login" replace />} />
