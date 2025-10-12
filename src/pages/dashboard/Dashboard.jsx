@@ -2,6 +2,7 @@ import { useState } from "react";
 import Navbar from "../../components/layout/Navbar";
 import Sidebar from "../../components/layout/Sidebar";
 import Footer from "../../components/layout/Footer";
+import ExchangeBox from "../../components/ui/ExchangeBox";
 import usePageTitle from "../../hooks/usePageTitle";
 
 export default function Dashboard() {
@@ -19,9 +20,12 @@ export default function Dashboard() {
           <h2 className="text-3xl font-semibold text-gray-800 mb-4">
             Welcome to Bitexly Dashboard
           </h2>
-          <p className="text-gray-600">
+          <p className="text-gray-600 mb-8">
             Manage your crypto transactions seamlessly.
           </p>
+
+          {/* Changelly-style exchange box */}
+          <ExchangeBox />
         </main>
 
         <Footer />

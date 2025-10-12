@@ -1,6 +1,7 @@
 import { createContext, useState, useEffect, useCallback } from "react";
 import AuthService from "../services/authService";
 import apiClient from "../utils/apiClient";
+import toast from "react-hot-toast";
 
 export const AuthContext = createContext(null);
 
@@ -23,6 +24,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem("bitexly_user", JSON.stringify(data));
     localStorage.setItem("bitexly_tokens", JSON.stringify(tokens));
     apiClient.defaults.headers.Authorization = `Bearer ${tokens.access}`;
+    toast.success("Logged in successfully");
   };
 
   // Logout
@@ -32,7 +34,8 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem("bitexly_user");
     localStorage.removeItem("bitexly_tokens");
     delete apiClient.defaults.headers.Authorization;
-    window.location.href = "/login"; // redirect to login
+    toast.success("You’ve been logged out");
+    setTimeout(() => (window.location.href = "/login"), 800);
   }, []);
 
   // Refresh token
@@ -46,6 +49,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem("bitexly_tokens", JSON.stringify(updatedTokens));
       apiClient.defaults.headers.Authorization = `Bearer ${newAccess}`;
     } catch {
+      toast.error("Session expired. Please log in again.");
       logout();
     }
   }, [tokens, logout]);
