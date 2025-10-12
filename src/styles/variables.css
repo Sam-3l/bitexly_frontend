@@ -1,0 +1,13 @@
+:root {
+    --bitexly-primary: #2563eb; /* Blue */
+    --bitexly-primary-dark: #1e3a8a;
+    --bitexly-secondary: #64748b; /* Slate gray */
+    --bitexly-bg: #f9fafb;
+    --bitexly-text: #111827;
+    --bitexly-accent: #16a34a; /* Green for success highlights */
+    --bitexly-danger: #dc2626;
+    --bitexly-border: #e5e7eb;
+  
+    --transition-fast: 0.2s ease-in-out;
+    --transition-medium: 0.35s ease-in-out;
+  }  

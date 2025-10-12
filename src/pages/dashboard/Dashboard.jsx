@@ -1,0 +1,29 @@
+import { useState } from "react";
+import Navbar from "../../components/layout/Navbar";
+import Sidebar from "../../components/layout/Sidebar";
+import Footer from "../../components/layout/Footer";
+
+export default function Dashboard() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  return (
+    <div className="flex min-h-screen bg-gray-50">
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      <div className="flex flex-col flex-1">
+        <Navbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
+
+        <main className="flex-1 p-6">
+          <h2 className="text-3xl font-semibold text-gray-800 mb-4">
+            Welcome to Bitexly Dashboard
+          </h2>
+          <p className="text-gray-600">
+            Manage your crypto transactions seamlessly.
+          </p>
+        </main>
+
+        <Footer />
+      </div>
+    </div>
+  );
+}
