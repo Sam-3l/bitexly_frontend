@@ -3,13 +3,16 @@ import clsx from "clsx";
 
 export default function StepIndicator({ steps, current }) {
   return (
-    <div className="flex items-center gap-4 w-full overflow-x-auto py-2">
+    <div className="flex items-center justify-between gap-4 w-full overflow-x-auto px-2 py-3">
       {steps.map((s, i) => {
         const idx = i + 1;
         const active = idx === current;
         const done = idx < current;
         return (
-          <div key={s.label} className="flex items-center gap-3 min-w-[120px]">
+          <div
+            key={s.label}
+            className="flex items-center gap-3 flex-1 min-w-[120px]"
+          >
             <div
               className={clsx(
                 "flex items-center justify-center w-10 h-10 rounded-full text-sm font-semibold shrink-0",

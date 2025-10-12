@@ -3,19 +3,23 @@ import RegistrationStepper from "../../components/auth/RegistrationStepper";
 
 export default function Register() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-white px-4 py-10">
+    <div className="min-h-screen flex items-start justify-center bg-gradient-to-br from-gray-50 to-white px-4 py-16">
       <div className="w-full max-w-4xl">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Bitexly" className="w-12 h-12" />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Bitexly</h1>
-              <p className="text-sm text-gray-500">Create an account to get started</p>
-            </div>
-          </div>
+        {/* Centered top: logo + title */}
+        <div className="flex flex-col items-center mb-8 text-center">
+          <img
+            src="/logo.png"
+            alt="Bitexly"
+            className="w-14 h-14 mb-3 drop-shadow-sm"
+          />
+          <h1 className="text-3xl font-bold text-gray-900">Bitexly</h1>
+          <p className="text-gray-500 text-sm mt-1">
+            Create an account to get started
+          </p>
         </div>
 
-        <div className="bg-transparent">
+        {/* Center the stepper + box */}
+        <div className="flex justify-center">
           <RegistrationStepper />
         </div>
       </div>
