@@ -1,33 +1,37 @@
-import { useState } from "react";
+import { useState, useContext } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { AuthContext } from "../../context/AuthContext";
 import AuthService from "../../services/authService";
 import InputField from "../../components/forms/InputField";
+import Button from "../../components/common/Button";
 
 export default function Login() {
+  const navigate = useNavigate();
+  const { login } = useContext(AuthContext);
   const [formData, setFormData] = useState({
-    username: "",
+    email: "",
     password: "",
+    user_type: "user",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
 
-  const handleChange = (e) => {
+  const handleChange = (e) =>
     setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
-    setSuccess("");
     setLoading(true);
+    setError("");
+
+    const { email, password, user_type } = formData;
 
     try {
-      const data = await AuthService.login(formData.username, formData.password);
-      setSuccess(data.message || "Login successful!");
-      console.log("User data:", data);
-      // TODO: store token or user info in AuthContext next
+      const data = await AuthService.login(email, password, user_type);
+      login(data);
+      navigate("/dashboard");
     } catch (err) {
-      setError(err.message || "Invalid credentials.");
+      setError("Invalid credentials or network error.");
     } finally {
       setLoading(false);
     }
@@ -35,49 +39,61 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-md bg-white shadow-lg rounded-2xl p-8">
-        <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">
-          Sign in to your account
-        </h2>
-
-        {error && (
-          <div className="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm">
-            {error}
-          </div>
-        )}
-        {success && (
-          <div className="bg-green-100 text-green-700 p-3 rounded mb-4 text-sm">
-            {success}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit}>
-          <InputField
-            label="Username"
-            type="text"
-            name="username"
-            value={formData.username}
-            onChange={handleChange}
-            placeholder="Enter your username"
+      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-gray-200">
+        {/* Logo and App Name */}
+        <div className="flex flex-col items-center mb-6">
+          <img
+            src="/logo.png" // 🟡 Replace this with your actual logo URL
+            alt="Bitexly Logo"
+            className="w-16 h-16 mb-2"
           />
+          <h1 className="text-3xl font-bold text-gray-900 tracking-wide">
+            Bitexly
+          </h1>
+          <p className="text-gray-500 text-sm mt-1">Secure Crypto Exchange</p>
+        </div>
 
+        {/* Login Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <InputField
+            label="Email Address"
+            name="email"
+            type="email"
+            placeholder="Enter your email"
+            value={formData.email}
+            onChange={handleChange}
+          />
           <InputField
             label="Password"
-            type="password"
             name="password"
+            type="password"
+            placeholder="Enter your password"
             value={formData.password}
             onChange={handleChange}
-            placeholder="Enter your password"
           />
 
-          <button
+          {error && (
+            <p className="text-red-500 text-sm text-center">{error}</p>
+          )}
+
+          <Button
             type="submit"
-            disabled={loading}
-            className="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 transition disabled:opacity-70"
-          >
-            {loading ? "Signing in..." : "Sign In"}
-          </button>
+            loading={loading}
+            variant="primary"
+            >
+            Login
+          </Button>
         </form>
+
+        {/* Footer */}
+        <div className="text-center text-sm text-gray-500 mt-6">
+          <Link
+            to="/register"
+            className="text-indigo-600 hover:text-indigo-500 transition font-medium"
+          >
+            Don’t have an account? Register
+          </Link>
+        </div>
       </div>
     </div>
   );
