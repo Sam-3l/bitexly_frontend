@@ -4,8 +4,10 @@ import { AuthContext } from "../../context/AuthContext";
 import AuthService from "../../services/authService";
 import InputField from "../../components/forms/InputField";
 import Button from "../../components/common/Button";
+import usePageTitle from "../../hooks/usePageTitle";
 
 export default function Login() {
+  usePageTitle("Login");
   const navigate = useNavigate();
   const { login } = useContext(AuthContext);
   const [formData, setFormData] = useState({

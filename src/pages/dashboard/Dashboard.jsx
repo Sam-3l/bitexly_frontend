@@ -2,8 +2,10 @@ import { useState } from "react";
 import Navbar from "../../components/layout/Navbar";
 import Sidebar from "../../components/layout/Sidebar";
 import Footer from "../../components/layout/Footer";
+import usePageTitle from "../../hooks/usePageTitle";
 
 export default function Dashboard() {
+  usePageTitle("Dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (

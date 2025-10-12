@@ -1,7 +1,9 @@
 import React from "react";
 import RegistrationStepper from "../../components/auth/RegistrationStepper";
+import usePageTitle from "../../hooks/usePageTitle";
 
 export default function Register() {
+  usePageTitle("Register");
   return (
     <div className="min-h-screen flex items-start justify-center bg-gradient-to-br from-gray-50 to-white px-4 py-16">
       <div className="w-full max-w-4xl">
