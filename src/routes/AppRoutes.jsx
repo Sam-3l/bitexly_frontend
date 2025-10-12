@@ -1,16 +1,17 @@
 // src/routes/AppRoutes.jsx
 import { Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "../components/common/ProtectedRoute";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useContext } from "react";
+import { AuthContext } from "../context/AuthContext";
 
 // Lazy load pages for better performance
 const Login = lazy(() => import("../pages/auth/Login"));
 const Register = lazy(() => import("../pages/auth/Register"));
-
-// Placeholder dashboard (we’ll build it soon)
 const Dashboard = lazy(() => import("../pages/dashboard/Dashboard"));
 
 export default function AppRoutes() {
+  const { user } = useContext(AuthContext);
+
   return (
     <Suspense
       fallback={
@@ -21,14 +22,20 @@ export default function AppRoutes() {
     >
       <Routes>
         {/* Auth Routes */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        <Route
+          path="/login"
+          element={!user ? <Login /> : <Navigate to="/dashboard" replace />}
+        />
+        <Route
+          path="/register"
+          element={!user ? <Register /> : <Navigate to="/dashboard" replace />}
+        />
 
+        {/* Protected Main App Routes */}
         <Route
           path="/dashboard"
           element={
             <ProtectedRoute>
-              {/* Main App Routes */}
               <Dashboard />
             </ProtectedRoute>
           }
