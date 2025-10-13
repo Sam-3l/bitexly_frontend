@@ -1,31 +1,54 @@
-import { Menu, Bell } from "lucide-react";
+import { Bell } from "lucide-react";
+import { useContext } from "react";
+import { AuthContext } from "../../context/AuthContext";
+import logo from "/logo.png";
 
-export default function Navbar({ onMenuClick }) {
+export default function Navbar() {
+  const { logout } = useContext(AuthContext);
+
   return (
-    <nav className="w-full flex items-center justify-between bg-white border-b border-gray-200 px-6 py-3 shadow-sm sticky top-0 z-40">
+    <nav className="w-full flex items-center justify-between px-8 py-4 relative z-20">
+      {/* Logo */}
       <div className="flex items-center gap-3">
-        <button
-          className="lg:hidden p-2 hover:bg-gray-100 rounded-full transition"
-          onClick={onMenuClick}
-        >
-          <Menu className="w-6 h-6 text-gray-600" />
-        </button>
-        <h1 className="text-2xl font-bold text-blue-600">Bitexly</h1>
+        <img src={logo} alt="Bitexly Logo" className="w-8 h-8 object-contain" />
+        <h1 className="text-2xl font-bold text-white tracking-wide">Bitexly</h1>
       </div>
 
+      {/* Actions */}
       <div className="flex items-center gap-4">
-        <button className="relative p-2 hover:bg-gray-100 rounded-full transition">
-          <Bell className="w-5 h-5 text-gray-600" />
+        {/* Google Play Store Icon */}
+        <a
+          href="https://play.google.com/store/apps/details?id=yourapp"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center w-10 h-10 bg-white/20 backdrop-blur-md rounded-full hover:bg-white/30 transition"
+        >
+          <img
+            src="/google-play-badge.png" // Place the official badge in public folder
+            alt="Google Play"
+            className="h-5 w-auto"
+          />
+        </a>
+
+        {/* Notifications */}
+        <button className="relative flex items-center justify-center w-10 h-10 bg-white/20 backdrop-blur-md rounded-full hover:bg-white/30 transition">
+          <Bell className="w-5 h-5 text-white" />
           <span className="absolute top-1 right-1 bg-red-500 text-white text-[10px] px-[4px] py-[1px] rounded-full">
             3
           </span>
         </button>
 
-        <img
-          src="https://i.pravatar.cc/40"
-          alt="User avatar"
-          className="w-10 h-10 rounded-full border border-gray-200 cursor-pointer hover:ring-2 hover:ring-blue-500 transition"
-        />
+        {/* Logout */}
+        <button
+          onClick={logout}
+          className="flex items-center justify-center w-10 h-10 bg-red-500 rounded-full hover:bg-red-600 transition"
+        >
+          <img
+            src="/logout-icon.png"
+            alt="Logout"
+            className="w-5 h-5 text-white" // optional: can also use Lucide LogOut
+          />
+        </button>
       </div>
     </nav>
   );
