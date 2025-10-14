@@ -1,4 +1,3 @@
-// src/routes/AppRoutes.jsx
 import { Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "../components/common/ProtectedRoute";
 import { lazy, Suspense, useContext } from "react";
@@ -8,6 +7,9 @@ import { AuthContext } from "../context/AuthContext";
 const Login = lazy(() => import("../pages/auth/Login"));
 const Register = lazy(() => import("../pages/auth/Register"));
 const Dashboard = lazy(() => import("../pages/dashboard/Dashboard"));
+
+// landing page (Home)
+const Home = lazy(() => import("../pages/Home"));
 
 export default function AppRoutes() {
   const { user } = useContext(AuthContext);
@@ -21,6 +23,9 @@ export default function AppRoutes() {
       }
     >
       <Routes>
+        {/* Public Landing Page */}
+        <Route path="/" element={<Home />} />
+
         {/* Auth Routes */}
         <Route
           path="/login"
@@ -31,7 +36,7 @@ export default function AppRoutes() {
           element={!user ? <Register /> : <Navigate to="/dashboard" replace />}
         />
 
-        {/* Protected Main App Routes */}
+        {/* Protected Routes */}
         <Route
           path="/dashboard"
           element={
@@ -42,7 +47,7 @@ export default function AppRoutes() {
         />
 
         {/* Default Redirect */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
   );
