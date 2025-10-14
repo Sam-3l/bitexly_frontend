@@ -6,21 +6,26 @@ const CACHE_KEY = "coingecko_coins";
 const CACHE_EXPIRY_KEY = "coingecko_coins_expiry";
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
-export default function CoinSelect({ value, onChange, coins: parentCoins }) {
+export default function CoinSelect({
+  value,
+  onChange,
+  coins: parentCoins,
+  defaultSymbol = "BTC", // 👈 Default coin symbol
+}) {
   const [coins, setCoins] = useState([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    if (parentCoins?.length) {
-      setCoins(parentCoins);
-      setLoading(false);
-      return;
-    }
-
     const fetchCoins = async () => {
       try {
+        if (parentCoins?.length) {
+          setCoins(parentCoins);
+          setLoading(false);
+          return;
+        }
+
         const cachedCoins = localStorage.getItem(CACHE_KEY);
         const cachedExpiry = localStorage.getItem(CACHE_EXPIRY_KEY);
 
@@ -56,40 +61,57 @@ export default function CoinSelect({ value, onChange, coins: parentCoins }) {
     fetchCoins();
   }, [parentCoins]);
 
+  // 🔹 Automatically select a default coin if none selected yet
+  useEffect(() => {
+    if (!value && coins.length) {
+      const defaultCoin = coins.find(
+        (c) => c.symbol.toUpperCase() === defaultSymbol
+      );
+      if (defaultCoin) onChange(defaultCoin.symbol.toUpperCase());
+    }
+  }, [coins, value, defaultSymbol, onChange]);
+
   const filteredCoins = coins.filter(
     (coin) =>
       coin.name.toLowerCase().includes(search.toLowerCase()) ||
       coin.symbol.toLowerCase().includes(search.toLowerCase())
   );
 
-  const selectedCoin = coins.find(c => c.symbol.toUpperCase() === value);
+  const selectedCoin = coins.find(
+    (c) => c.symbol.toUpperCase() === value
+  );
 
   return (
     <div className="relative w-auto">
-      {/* Selected Coin Button */}
+    {/* Selected Coin Button */}
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center justify-between w-full px-4 py-2 border rounded-xl bg-white hover:bg-gray-50 transition"
-      >
-        <div className="flex items-center gap-2 pr-1">
-          {selectedCoin && (
+        className="flex items-center justify-between w-full max-w-xs px-4 py-2 border border-gray-600 rounded-xl bg-[#1b1c1f] hover:bg-[#232428] transition text-gray-200 focus:outline-none"
+        >
+        <div className="flex items-center gap-2 overflow-hidden">
+            {selectedCoin && (
             <img
-              src={selectedCoin.image}
-              alt={selectedCoin.symbol}
-              className="w-5 h-5 rounded-full"
+                src={selectedCoin.image}
+                alt={selectedCoin.symbol}
+                className="w-5 h-5 rounded-full flex-shrink-0"
             />
-          )}
-          <span className="font-medium truncate">
+            )}
+            <span className="font-medium text-sm sm:text-base pr-[2px]">
             {selectedCoin ? selectedCoin.symbol.toUpperCase() : "Select coin"}
-          </span>
+            </span>
         </div>
-        <ChevronDown className="w-4 h-4 text-gray-400" />
+
+        <ChevronDown
+            className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${
+            open ? "rotate-180" : ""
+            }`}
+        />
       </button>
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute z-20 mt-2 w-[250px] max-w-lg bg-white border rounded-xl shadow-xl overflow-hidden animate-fade-in">
+        <div className="absolute z-[9999] mt-2 w-[250px] bg-[#1f2023] border border-gray-700 rounded-xl shadow-lg overflow-hidden animate-fade-in text-gray-200">
           {loading ? (
             <div className="flex items-center justify-center p-4 text-gray-400">
               <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading coins...
@@ -97,13 +119,13 @@ export default function CoinSelect({ value, onChange, coins: parentCoins }) {
           ) : (
             <>
               {/* Search */}
-              <div className="p-2 border-b">
+              <div className="p-2 border-b border-gray-700 bg-[#25262a]">
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search coin..."
-                  className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 border border-gray-600 rounded-lg text-sm bg-[#2a2b2f] text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -117,8 +139,10 @@ export default function CoinSelect({ value, onChange, coins: parentCoins }) {
                         onChange(coin.symbol.toUpperCase());
                         setOpen(false);
                       }}
-                      className={`flex items-center gap-2 w-full px-4 py-2 text-left hover:bg-gray-100 ${
-                        coin.symbol.toUpperCase() === value ? "bg-gray-50" : ""
+                      className={`flex items-center gap-2 w-full px-4 py-2 text-left hover:bg-[#2a2b2f] ${
+                        coin.symbol.toUpperCase() === value
+                          ? "bg-[#2a2b2f] text-blue-400"
+                          : "text-gray-200"
                       }`}
                     >
                       <img
@@ -135,7 +159,9 @@ export default function CoinSelect({ value, onChange, coins: parentCoins }) {
                     </button>
                   ))
                 ) : (
-                  <div className="p-4 text-gray-400 text-center">No results found</div>
+                  <div className="p-4 text-gray-400 text-center">
+                    No results found
+                  </div>
                 )}
               </div>
             </>

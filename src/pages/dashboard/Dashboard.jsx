@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import Navbar from "../../components/layout/Navbar";
 import ExchangeBox from "../../components/ui/ExchangeBox";
+import Particles from "../../components/ui/Particles";
 import usePageTitle from "../../hooks/usePageTitle";
 
 export default function Dashboard() {
@@ -26,6 +27,9 @@ export default function Dashboard() {
           animate={{ y: [0, 100, 0], x: [0, -50, 0], scale: [1, 1.05, 1] }}
           transition={{ repeat: Infinity, duration: 35, ease: "easeInOut" }}
         />
+
+        {/* Particle effect */}
+        <Particles />
       </div>
 
       {/* Navbar */}

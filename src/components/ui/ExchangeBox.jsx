@@ -1,203 +1,151 @@
-import { useState, useEffect } from "react";
-import { Repeat, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { ArrowDownUp } from "lucide-react";
 import CoinSelect from "./CoinSelect";
-import axios from "axios";
-import toast from "react-hot-toast";
+import CurrencySelect from "./CurrencySelect";
 
 export default function ExchangeBox() {
-  const [tab, setTab] = useState("buy"); // buy, sell, exchange
-  const [from, setFrom] = useState("BTC");
-  const [to, setTo] = useState("ETH");
-  const [amount, setAmount] = useState("");
-  const [converted, setConverted] = useState("");
-  const [rate, setRate] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [coins, setCoins] = useState([]);
+  const [activeTab, setActiveTab] = useState("buy");
 
-  // Fetch coins with caching
-  useEffect(() => {
-    const CACHE_KEY = "coingecko_coins";
-    const CACHE_EXPIRY_KEY = "coingecko_coins_expiry";
-    const CACHE_DURATION = 24 * 60 * 60 * 1000;
-
-    const fetchCoins = async () => {
-      const cachedCoins = localStorage.getItem(CACHE_KEY);
-      const cachedExpiry = localStorage.getItem(CACHE_EXPIRY_KEY);
-
-      if (cachedCoins && cachedExpiry && Date.now() < Number(cachedExpiry)) {
-        setCoins(JSON.parse(cachedCoins));
-        return;
-      }
-
-      try {
-        const res = await axios.get(
-          "https://api.coingecko.com/api/v3/coins/markets",
-          {
-            params: {
-              vs_currency: "usd",
-              order: "market_cap_desc",
-              per_page: 250,
-              page: 1,
-              sparkline: false,
-            },
-          }
-        );
-        setCoins(res.data);
-        localStorage.setItem(CACHE_KEY, JSON.stringify(res.data));
-        localStorage.setItem(CACHE_EXPIRY_KEY, Date.now() + CACHE_DURATION);
-      } catch (err) {
-        toast.error("Failed to fetch coin list");
-        console.error(err);
-      }
-    };
-
-    fetchCoins();
-  }, []);
-
-  const getCoinBySymbol = (symbol) =>
-    coins.find((c) => c.symbol.toUpperCase() === symbol);
-
-  const fetchRate = async () => {
-    const fromCoin = getCoinBySymbol(from);
-    const toCoin = getCoinBySymbol(to);
-    if (!fromCoin || !toCoin) return;
-
-    setLoading(true);
-    try {
-      const res = await axios.get(
-        `https://api.coingecko.com/api/v3/simple/price?ids=${fromCoin.id}&vs_currencies=${toCoin.id}`
-      );
-      const newRate = res.data[fromCoin.id]?.[toCoin.id.toLowerCase()];
-      if (newRate) setRate(newRate);
-      else toast.error("Rate unavailable for this pair");
-    } catch {
-      toast.error("Failed to fetch rate");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (coins.length) fetchRate();
-  }, [from, to, coins]);
-
-  useEffect(() => {
-    if (rate && amount) setConverted((amount * rate).toFixed(6));
-    else setConverted("");
-  }, [amount, rate]);
-
-  const handleSwap = () => {
-    const temp = from;
-    setFrom(to);
-    setTo(temp);
-  };
-
-  const handleAction = () => {
-    if (!amount || parseFloat(amount) <= 0) {
-      toast.error("Enter a valid amount");
-      return;
-    }
-    toast.success(
-      tab === "buy"
-        ? `Buying ${amount} ${from}`
-        : tab === "sell"
-        ? `Selling ${amount} ${from}`
-        : `Exchanging ${amount} ${from} → ${to}`
-    );
-  };
+  const [fromCoin, setFromCoin] = useState("");
+  const [toCurrency, setToCurrency] = useState("");
+  const [swapFrom, setSwapFrom] = useState("");
+  const [swapTo, setSwapTo] = useState("");
 
   return (
-    <div className="max-w-lg mx-auto bg-white rounded-3xl shadow-2xl p-6">
+    <div className="max-w-xl mx-auto rounded-3xl p-8 backdrop-blur-2xl bg-gray-900/60 border border-white/10 shadow-[0_0_40px_rgba(99,102,241,0.2)] text-gray-200">
       {/* Tabs */}
-      <div className="flex justify-center mb-6 bg-gray-100 rounded-full p-1">
-        {["buy", "sell", "exchange"].map((type) => (
+      <div className="flex justify-center mb-8 bg-gray-800/50 rounded-full p-1 backdrop-blur-md border border-white/10">
+        {["buy", "sell", "swap"].map((tab) => (
           <button
-            key={type}
-            onClick={() => setTab(type)}
-            className={`flex-1 py-2 rounded-full font-semibold capitalize transition-all ${
-              tab === type
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`flex-1 py-2 rounded-full text-sm font-semibold capitalize transition-all duration-300 ${
+              activeTab === tab
                 ? "bg-indigo-600 text-white shadow-md"
-                : "text-gray-500 hover:text-gray-700"
+                : "text-gray-400 hover:text-gray-200"
             }`}
           >
-            {type}
+            {tab}
           </button>
         ))}
       </div>
 
-      {/* From */}
-      <div className="mb-4">
-        <label className="text-gray-500 text-sm mb-1 block">From</label>
-        <div className="flex items-center justify-between border rounded-2xl p-3">
-          <CoinSelect value={from} onChange={setFrom} coins={coins} />
-          <input
-            type="number"
-            placeholder="0.00"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            className="w-52 text-right focus:outline-none no-spinner"
-          />
-        </div>
-      </div>
+      {/* BUY Tab */}
+      {activeTab === "buy" && (
+        <div className="space-y-6">
+          <div className="border border-white/10 bg-gray-800/40 rounded-2xl p-4 backdrop-blur-md">
+            <p className="text-xs text-gray-400 mb-1">You Pay</p>
+            <div className="flex items-center justify-between">
+              <input
+                type="number"
+                placeholder="0.00"
+                className="bg-transparent outline-none text-xl font-semibold text-white w-full no-spinner"
+              />
+              <CurrencySelect value={toCurrency} onChange={setToCurrency} />
+            </div>
+          </div>
 
-      {/* Swap */}
-      {tab === "exchange" && (
-        <div className="flex justify-center mb-4">
-          <button
-            onClick={handleSwap}
-            className="p-3 bg-indigo-100 hover:bg-indigo-200 rounded-full transition"
-          >
-            <Repeat className="w-5 h-5 text-indigo-600" />
+          <div className="flex justify-center">
+            <div className="p-2 bg-indigo-600 rounded-full shadow-lg hover:shadow-indigo-500/50 transition">
+              <ArrowDownUp className="text-white w-5 h-5" />
+            </div>
+          </div>
+
+          <div className="border border-white/10 bg-gray-800/40 rounded-2xl p-4 backdrop-blur-md">
+            <p className="text-xs text-gray-400 mb-1">You Get</p>
+            <div className="flex items-center justify-between">
+              <input
+                type="number"
+                placeholder="0.00"
+                className="bg-transparent outline-none text-xl font-semibold text-white w-full no-spinner"
+              />
+              <CoinSelect value={fromCoin} onChange={setFromCoin} />
+            </div>
+          </div>
+
+          <button className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-2xl hover:bg-indigo-700 transition-all shadow-lg hover:shadow-indigo-500/50">
+            Buy Now
           </button>
         </div>
       )}
 
-      {/* To */}
-      <div className="mb-4">
-        <label className="text-gray-500 text-sm mb-1 block">To</label>
-        <div className="flex items-center justify-between border rounded-2xl p-3 bg-gray-50">
-          <CoinSelect value={to} onChange={setTo} coins={coins} />
-          <span className="text-gray-600 font-medium">
-            {loading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : converted ? (
-              `≈ ${converted}`
-            ) : (
-              "≈ 0.00"
-            )}
-          </span>
+      {/* SELL Tab */}
+      {activeTab === "sell" && (
+        <div className="space-y-6">
+          <div className="border border-white/10 bg-gray-800/40 rounded-2xl p-4 backdrop-blur-md">
+            <p className="text-xs text-gray-400 mb-1">You Sell</p>
+            <div className="flex items-center justify-between">
+              <input
+                type="number"
+                placeholder="0.00"
+                className="bg-transparent outline-none text-xl font-semibold text-white w-full no-spinner"
+              />
+              <CoinSelect value={fromCoin} onChange={setFromCoin} />
+            </div>
+          </div>
+
+          <div className="flex justify-center">
+            <div className="p-2 bg-indigo-600 rounded-full shadow-lg hover:shadow-indigo-500/50 transition">
+              <ArrowDownUp className="text-white w-5 h-5" />
+            </div>
+          </div>
+
+          <div className="border border-white/10 bg-gray-800/40 rounded-2xl p-4 backdrop-blur-md">
+            <p className="text-xs text-gray-400 mb-1">You Receive</p>
+            <div className="flex items-center justify-between">
+              <input
+                type="number"
+                placeholder="0.00"
+                className="bg-transparent outline-none text-xl font-semibold text-white w-full no-spinner"
+              />
+              <CurrencySelect value={toCurrency} onChange={setToCurrency} />
+            </div>
+          </div>
+
+          <button className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-2xl hover:bg-indigo-700 transition-all shadow-lg hover:shadow-indigo-500/50">
+            Sell Now
+          </button>
         </div>
-      </div>
+      )}
 
-      {/* Rate info */}
-      <div className="text-sm text-gray-500 text-center mb-6">
-        {loading ? (
-          <span className="inline-flex items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-            Fetching rates...
-          </span>
-        ) : rate ? (
-          <span>
-            1 {from} ≈ <span className="text-indigo-600 font-semibold">{rate}</span> {to}
-          </span>
-        ) : (
-          "Rate unavailable"
-        )}
-      </div>
+      {/* SWAP Tab */}
+      {activeTab === "swap" && (
+        <div className="space-y-6">
+          <div className="border border-white/10 bg-gray-800/40 rounded-2xl p-4 backdrop-blur-md">
+            <p className="text-xs text-gray-400 mb-1">From</p>
+            <div className="flex items-center justify-between">
+              <input
+                type="number"
+                placeholder="0.00"
+                className="bg-transparent outline-none text-xl font-semibold text-white w-full no-spinner"
+              />
+              <CoinSelect value={swapFrom} onChange={setSwapFrom} defaultSymbol="BTC" />
+            </div>
+          </div>
 
-      {/* Action Button */}
-      <button
-        onClick={handleAction}
-        className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-2xl hover:bg-indigo-700 transition-all shadow-lg hover:shadow-indigo-500/50"
-      >
-        {tab === "buy" && `Buy ${from}`}
-        {tab === "sell" && `Sell ${from}`}
-        {tab === "exchange" && `Exchange ${from} → ${to}`}
-      </button>
+          <div className="flex justify-center">
+            <div className="p-2 bg-indigo-600 rounded-full shadow-lg hover:shadow-indigo-500/50 transition">
+              <ArrowDownUp className="text-white w-5 h-5" />
+            </div>
+          </div>
 
-      <div className="text-center mt-4 text-xs text-gray-400">
-        Powered by <span className="text-indigo-600 font-semibold">Bitexly</span>
-      </div>
+          <div className="border border-white/10 bg-gray-800/40 rounded-2xl p-4 backdrop-blur-md">
+            <p className="text-xs text-gray-400 mb-1">To</p>
+            <div className="flex items-center justify-between">
+              <input
+                type="number"
+                placeholder="0.00"
+                className="bg-transparent outline-none text-xl font-semibold text-white w-full no-spinner"
+              />
+              <CoinSelect value={swapTo} onChange={setSwapTo} defaultSymbol="ETH" />
+            </div>
+          </div>
+
+          <button className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-2xl hover:bg-indigo-700 transition-all shadow-lg hover:shadow-indigo-500/50">
+            Swap
+          </button>
+        </div>
+      )}
     </div>
   );
 }
