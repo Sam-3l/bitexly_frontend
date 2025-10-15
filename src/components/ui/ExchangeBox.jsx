@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { ArrowDownUp, Loader2 } from "lucide-react";
+import { ArrowDownUp, Loader2, X } from "lucide-react";
 import CoinSelect from "./CoinSelect";
 import CurrencySelect from "./CurrencySelect";
 import apiClient from "../../utils/apiClient";
@@ -17,18 +17,12 @@ function useDebounce(callback, delay, deps) {
 export default function ExchangeBox() {
   const [activeTab, setActiveTab] = useState("buy"); // buy | sell | swap
 
-  // BUY / SELL inputs
   const [fiatAmount, setFiatAmount] = useState("");
   const [cryptoAmount, setCryptoAmount] = useState("");
 
-  // Swap fields (kept simple)
-  const [swapFrom, setSwapFrom] = useState("");
-  const [swapTo, setSwapTo] = useState("");
+  const [fromCoin, setFromCoin] = useState("BTC");
+  const [toCurrency, setToCurrency] = useState("NGN");
 
-  const [fromCoin, setFromCoin] = useState("BTC"); // crypto code
-  const [toCurrency, setToCurrency] = useState("NGN"); // fiat code
-
-  // Quote state
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [quoteError, setQuoteError] = useState(null);
   const [quoteRate, setQuoteRate] = useState(null);
@@ -39,10 +33,12 @@ export default function ExchangeBox() {
 
   const [userTyped, setUserTyped] = useState(null);
 
-  // Helpers
+  // Session modal states
+  const [creatingSession, setCreatingSession] = useState(false);
+  const [widgetUrl, setWidgetUrl] = useState(null);
+
   const formatNumber = (n, decimals = 8) => {
     if (n === null || n === undefined || Number.isNaN(Number(n))) return "";
-    // for fiat show 2 decimals, for crypto show up to `decimals`
     return typeof n === "number"
       ? n >= 1
         ? n.toLocaleString(undefined, { maximumFractionDigits: 2 })
@@ -52,9 +48,7 @@ export default function ExchangeBox() {
       : Number(n).toLocaleString(undefined, { maximumFractionDigits: decimals });
   };
 
-  // Build payload and call quote endpoint
   const fetchQuote = useCallback(async () => {
-    // Basic validations
     setQuoteError(null);
     setQuoteRate(null);
     setQuoteFees(null);
@@ -65,11 +59,7 @@ export default function ExchangeBox() {
     try {
       if (!fromCoin || !toCurrency) return;
 
-      // For BUY: user types fiat (NGN) -> want destination crypto
-      // For SELL: user types crypto -> want destination fiat
-      const action = activeTab.toUpperCase(); // BUY or SELL
-
-      // Minimum check: require input
+      const action = activeTab.toUpperCase();
       if (action === "BUY" && (!fiatAmount || Number(fiatAmount) <= 0)) return;
       if (action === "SELL" && (!cryptoAmount || Number(cryptoAmount) <= 0)) return;
 
@@ -82,7 +72,7 @@ export default function ExchangeBox() {
               sourceAmount: Number(fiatAmount),
               sourceCurrencyCode: toCurrency,
               destinationCurrencyCode: fromCoin,
-              countryCode: toCurrency.slice(0, 2), // NGN -> NG
+              countryCode: toCurrency.slice(0, 2),
             }
           : {
               action: "SELL",
@@ -94,11 +84,8 @@ export default function ExchangeBox() {
 
       const res = await apiClient.post("/meld/crypto-quote/", payload);
       const data = res.data;
-
-      // unwrap Meld-style + backend-wrapped responses
       const inner = data?.data || data;
 
-      // Handle various possible structures safely
       const quoteObj =
         (inner?.quotes && Array.isArray(inner.quotes) && inner.quotes.length > 0 && inner.quotes[0]) ||
         inner?.quote ||
@@ -106,7 +93,6 @@ export default function ExchangeBox() {
 
       setLastQuoteRaw(quoteObj);
 
-      // Destination amount choose priority:
       const destAmount =
         quoteObj.destinationAmount ??
         quoteObj.destinationAmountWithoutFees ??
@@ -124,7 +110,6 @@ export default function ExchangeBox() {
 
       const provider = quoteObj.serviceProvider ?? quoteObj.provider ?? data.serviceProvider ?? null;
 
-      // Some providers include a minimum / minAmount field — try to detect it
       const minAmount =
         quoteObj.minimumAmount ??
         quoteObj.minAmount ??
@@ -133,12 +118,11 @@ export default function ExchangeBox() {
         quoteObj.min_source_amount_in_fiat ??
         null;
 
-      // Update UI values depending on action
       if (action === "BUY" && userTyped === "fiat") {
         setCryptoAmount(destAmount !== null ? String(destAmount) : "");
       } else if (action === "SELL" && userTyped === "crypto") {
         setFiatAmount(destAmount !== null ? String(destAmount) : "");
-      }      
+      }
 
       setQuoteRate(exchangeRate);
       setQuoteFees(fees);
@@ -146,18 +130,14 @@ export default function ExchangeBox() {
       setQuoteMin(minAmount || null);
     } catch (err) {
       console.error("Quote error:", err);
-
-      // Try to parse returned server error message and minimums
       const resp = err?.response?.data;
       if (resp) {
-        // Meld sometimes returns { message: "...", error: "...", minAmount: 12345 }
         const fallbackMessage =
           resp.message ||
           resp.error ||
           (resp.quotes && resp.quotes.length === 0 && "No quotes available") ||
           null;
 
-        // Try to extract minimum from known keys
         const maybeMin =
           resp.minimumAmount ?? resp.minAmount ?? resp.min_source_amount ?? resp.min_source_amount_in_fiat ?? null;
 
@@ -167,7 +147,7 @@ export default function ExchangeBox() {
         } else if (fallbackMessage) {
           setQuoteError(fallbackMessage);
         } else {
-          setQuoteError("Unable to fetch quote. Try a different amount or currency.");
+          setQuoteError("Unable to fetch quote. Try again.");
         }
       } else {
         setQuoteError("Network error while fetching quote.");
@@ -175,14 +155,11 @@ export default function ExchangeBox() {
     } finally {
       setLoadingQuote(false);
     }
-
     setUserTyped(null);
   }, [activeTab, fiatAmount, cryptoAmount, fromCoin, toCurrency]);
 
-  // Debounce quote calls (600ms)
   useDebounce(fetchQuote, 600, [activeTab, fiatAmount, cryptoAmount, fromCoin, toCurrency]);
 
-  // Reset fields when switching tab
   useEffect(() => {
     setFiatAmount("");
     setCryptoAmount("");
@@ -194,20 +171,66 @@ export default function ExchangeBox() {
     setLastQuoteRaw(null);
   }, [activeTab, fromCoin, toCurrency]);
 
-  // UI helpers
   const isBuy = activeTab === "buy";
   const isSell = activeTab === "sell";
   const hasValidBuyInput = isBuy && fiatAmount && Number(fiatAmount) > 0 && !quoteError;
   const hasValidSellInput = isSell && cryptoAmount && Number(cryptoAmount) > 0 && !quoteError;
 
-  const handleBuyNow = () => {
-    // This is where you'd create session widget or proceed to checkout
-    // e.g. POST /meld/session-widget/ with session data using lastQuoteRaw etc.
-    console.log("Buy now", { fiatAmount, cryptoAmount, lastQuoteRaw });
+  // --- Create BUY Session ---
+  const handleBuyNow = async () => {
+    if (!lastQuoteRaw) return;
+    setCreatingSession(true);
+    try {
+      const user = JSON.parse(localStorage.getItem("bitexly_user") || "{}");
+      const payload = {
+        sessionData: {
+          walletAddress: user.wallet_address,
+          countryCode: toCurrency.slice(0, 2),
+          sourceCurrencyCode: toCurrency,
+          sourceAmount: Number(fiatAmount),
+          destinationCurrencyCode: fromCoin,
+          serviceProvider: quoteProvider || lastQuoteRaw.serviceProvider,
+        },
+        sessionType: "BUY",
+        externalCustomerId: user.id || user.email,
+      };
+      const res = await apiClient.post("/meld/session-widget/", payload);
+      const { widgetUrl } = res.data;
+      setWidgetUrl(widgetUrl);
+    } catch (err) {
+      console.error("Buy session error:", err);
+      alert("Unable to start buy session. Try again.");
+    } finally {
+      setCreatingSession(false);
+    }
   };
 
-  const handleSellNow = () => {
-    console.log("Sell now", { fiatAmount, cryptoAmount, lastQuoteRaw });
+  // --- Create SELL Session ---
+  const handleSellNow = async () => {
+    if (!lastQuoteRaw) return;
+    setCreatingSession(true);
+    try {
+      const user = JSON.parse(localStorage.getItem("bitexly_user") || "{}");
+      const payload = {
+        sessionData: {
+          countryCode: toCurrency.slice(0, 2),
+          sourceCurrencyCode: fromCoin,
+          sourceAmount: Number(cryptoAmount),
+          destinationCurrencyCode: toCurrency,
+          serviceProvider: quoteProvider || lastQuoteRaw.serviceProvider,
+        },
+        sessionType: "SELL",
+        externalCustomerId: user.id || user.email,
+      };
+      const res = await apiClient.post("/meld/session-widget/", payload);
+      const { widgetUrl } = res.data;
+      setWidgetUrl(widgetUrl);
+    } catch (err) {
+      console.error("Sell session error:", err);
+      alert("Unable to start sell session. Try again.");
+    } finally {
+      setCreatingSession(false);
+    }
   };
 
   return (
@@ -227,10 +250,10 @@ export default function ExchangeBox() {
         ))}
       </div>
 
-      {/* BUY Tab */}
+      {/* BUY Section */}
       {isBuy && (
         <div className="space-y-6 relative">
-          {/* You Pay (Fiat) */}
+          {/* You Pay */}
           <div className="border border-white/10 bg-gray-800/40 rounded-2xl p-4 backdrop-blur-md relative z-30">
             <p className="text-xs text-gray-400 mb-1">You Pay</p>
             <div className="flex items-center justify-between">
@@ -256,7 +279,7 @@ export default function ExchangeBox() {
             </div>
           </div>
 
-          {/* You Get (Crypto) */}
+          {/* You Get */}
           <div className="border border-white/10 bg-gray-800/40 rounded-2xl p-4 backdrop-blur-md relative z-20">
             <p className="text-xs text-gray-400 mb-1">You Get</p>
             <div className="flex items-center justify-between">
@@ -276,7 +299,6 @@ export default function ExchangeBox() {
               </div>
             )}
 
-            {/* Show rate / fees / provider */}
             {!loadingQuote && quoteRate && (
               <div className="mt-2 text-xs text-gray-300">
                 <div>Rate: <span className="font-medium">{quoteRate ? formatNumber(Number(quoteRate), 2) : "-"} {toCurrency}/{fromCoin}</span></div>
@@ -293,20 +315,19 @@ export default function ExchangeBox() {
 
           <button
             onClick={handleBuyNow}
-            disabled={!hasValidBuyInput}
+            disabled={!hasValidBuyInput || creatingSession}
             className={`w-full py-3 text-white font-semibold rounded-2xl transition-all shadow-lg relative z-10 ${
               hasValidBuyInput ? "bg-indigo-600 hover:bg-indigo-700 hover:shadow-indigo-500/50" : "bg-gray-700 cursor-not-allowed opacity-60"
             }`}
           >
-            {loadingQuote ? "Checking…" : "Buy Now"}
+            {creatingSession ? "Creating session…" : loadingQuote ? "Checking…" : "Buy Now"}
           </button>
         </div>
       )}
 
-      {/* SELL Tab */}
+      {/* SELL Section */}
       {isSell && (
         <div className="space-y-6 relative">
-          {/* You Sell (Crypto) */}
           <div className="border border-white/10 bg-gray-800/40 rounded-2xl p-4 backdrop-blur-md relative z-30">
             <p className="text-xs text-gray-400 mb-1">You Sell</p>
             <div className="flex items-center justify-between">
@@ -324,14 +345,12 @@ export default function ExchangeBox() {
             </div>
           </div>
 
-          {/* Icon */}
           <div className="flex justify-center relative z-10">
             <div className="p-2 bg-indigo-600 rounded-full shadow-lg hover:shadow-indigo-500/50 transition">
               <ArrowDownUp className="text-white w-5 h-5" />
             </div>
           </div>
 
-          {/* You Receive (Fiat) */}
           <div className="border border-white/10 bg-gray-800/40 rounded-2xl p-4 backdrop-blur-md relative z-20">
             <p className="text-xs text-gray-400 mb-1">You Receive</p>
             <div className="flex items-center justify-between">
@@ -351,7 +370,6 @@ export default function ExchangeBox() {
               </div>
             )}
 
-            {/* Show rate / fees / provider */}
             {!loadingQuote && quoteRate && (
               <div className="mt-2 text-xs text-gray-300">
                 <div>Rate: <span className="font-medium">{quoteRate ? formatNumber(Number(quoteRate), 2) : "-"} {toCurrency}/{fromCoin}</span></div>
@@ -368,54 +386,35 @@ export default function ExchangeBox() {
 
           <button
             onClick={handleSellNow}
-            disabled={!hasValidSellInput}
+            disabled={!hasValidSellInput || creatingSession}
             className={`w-full py-3 text-white font-semibold rounded-2xl transition-all shadow-lg relative z-10 ${
               hasValidSellInput ? "bg-indigo-600 hover:bg-indigo-700 hover:shadow-indigo-500/50" : "bg-gray-700 cursor-not-allowed opacity-60"
             }`}
           >
-            {loadingQuote ? "Checking…" : "Sell Now"}
+            {creatingSession ? "Creating session…" : loadingQuote ? "Checking…" : "Sell Now"}
           </button>
         </div>
       )}
 
-      {/* SWAP Tab (unchanged) */}
-      {activeTab === "swap" && (
-        <div className="space-y-6 relative">
-          <div className="border border-white/10 bg-gray-800/40 rounded-2xl p-4 backdrop-blur-md relative z-30">
-            <p className="text-xs text-gray-400 mb-1">From</p>
-            <div className="flex items-center justify-between">
-              <input
-                type="number"
-                placeholder="0.00"
-                className="bg-transparent outline-none text-xl font-semibold text-white w-full no-spinner"
-              />
-              <CoinSelect value={swapFrom} onChange={setSwapFrom} defaultSymbol="BTC" />
-            </div>
+      {/* Embedded Widget Modal */}
+      {widgetUrl && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[9999]">
+          <div className="bg-gray-900 rounded-2xl w-[95%] md:w-[80%] h-[80vh] shadow-xl border border-white/10 relative">
+            <button
+              onClick={() => setWidgetUrl(null)}
+              className="absolute top-3 right-3 bg-gray-800 text-gray-300 hover:text-white rounded-full p-2"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <iframe
+              src={widgetUrl}
+              title="Meld Widget"
+              className="w-full h-full rounded-2xl border-0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            ></iframe>
           </div>
-
-          <div className="flex justify-center relative z-10">
-            <div className="p-2 bg-indigo-600 rounded-full shadow-lg hover:shadow-indigo-500/50 transition">
-              <ArrowDownUp className="text-white w-5 h-5" />
-            </div>
-          </div>
-
-          <div className="border border-white/10 bg-gray-800/40 rounded-2xl p-4 backdrop-blur-md relative z-20">
-            <p className="text-xs text-gray-400 mb-1">To</p>
-            <div className="flex items-center justify-between">
-              <input
-                type="number"
-                placeholder="0.00"
-                className="bg-transparent outline-none text-xl font-semibold text-white w-full no-spinner"
-              />
-              <CoinSelect value={swapTo} onChange={setSwapTo} defaultSymbol="ETH" />
-            </div>
-          </div>
-
-          <button className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-2xl hover:bg-indigo-700 transition-all shadow-lg hover:shadow-indigo-500/50 relative z-10">
-            Swap
-          </button>
         </div>
       )}
     </div>
   );
-}
+}              
