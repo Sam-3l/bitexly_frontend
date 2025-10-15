@@ -35,7 +35,7 @@ export default function CoinSelect({
 
         // 🔒 Secure call through backend
         const res = await apiClient.get("/meld/crypto-currencies/");
-        const data = res.data || [];
+        const data = res.data?.data || res.data || [];
 
         // Map backend data to unified format
         const formatted = data.map((coin) => ({

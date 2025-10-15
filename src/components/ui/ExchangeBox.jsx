@@ -37,6 +37,8 @@ export default function ExchangeBox() {
   const [quoteMin, setQuoteMin] = useState(null);
   const [lastQuoteRaw, setLastQuoteRaw] = useState(null);
 
+  const [userTyped, setUserTyped] = useState(null);
+
   // Helpers
   const formatNumber = (n, decimals = 8) => {
     if (n === null || n === undefined || Number.isNaN(Number(n))) return "";
@@ -93,11 +95,14 @@ export default function ExchangeBox() {
       const res = await apiClient.post("/meld/crypto-quote/", payload);
       const data = res.data;
 
-      // Meld often returns quotes: [ {...} ] or top-level fields. Normalize.
+      // unwrap Meld-style + backend-wrapped responses
+      const inner = data?.data || data;
+
+      // Handle various possible structures safely
       const quoteObj =
-        (data && Array.isArray(data.quotes) && data.quotes.length > 0 && data.quotes[0]) ||
-        (data && data.quote) ||
-        data;
+        (inner?.quotes && Array.isArray(inner.quotes) && inner.quotes.length > 0 && inner.quotes[0]) ||
+        inner?.quote ||
+        inner;
 
       setLastQuoteRaw(quoteObj);
 
@@ -129,13 +134,11 @@ export default function ExchangeBox() {
         null;
 
       // Update UI values depending on action
-      if (action === "BUY") {
-        // user typed fiat => update crypto field
+      if (action === "BUY" && userTyped === "fiat") {
         setCryptoAmount(destAmount !== null ? String(destAmount) : "");
-      } else {
-        // SELL: user typed crypto => update fiat field
+      } else if (action === "SELL" && userTyped === "crypto") {
         setFiatAmount(destAmount !== null ? String(destAmount) : "");
-      }
+      }      
 
       setQuoteRate(exchangeRate);
       setQuoteFees(fees);
@@ -172,6 +175,8 @@ export default function ExchangeBox() {
     } finally {
       setLoadingQuote(false);
     }
+
+    setUserTyped(null);
   }, [activeTab, fiatAmount, cryptoAmount, fromCoin, toCurrency]);
 
   // Debounce quote calls (600ms)
@@ -234,7 +239,7 @@ export default function ExchangeBox() {
                 type="number"
                 value={fiatAmount}
                 onChange={(e) => {
-                  // allow decimals and empty
+                  setUserTyped("fiat");
                   setFiatAmount(e.target.value);
                 }}
                 placeholder="0.00"
@@ -308,7 +313,10 @@ export default function ExchangeBox() {
               <input
                 type="number"
                 value={cryptoAmount}
-                onChange={(e) => setCryptoAmount(e.target.value)}
+                onChange={(e) => {
+                  setUserTyped("crypto");
+                  setCryptoAmount(e.target.value);
+                }}
                 placeholder="0.00"
                 className="bg-transparent outline-none text-xl font-semibold text-white w-full no-spinner"
               />

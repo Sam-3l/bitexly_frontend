@@ -28,7 +28,7 @@ export default function CurrencySelect({
 
         // 🔒 Secure backend call
         const res = await apiClient.get("/meld/fiat-currencies/");
-        const data = res.data || [];
+        const data = res.data?.data || res.data || [];
 
         const formatted = data.map((item) => ({
           code: item.currencyCode,
