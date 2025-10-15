@@ -5,6 +5,7 @@ import CryptoList from '../components/ui/CryptoList'
 
 import AOS from 'aos'
 import 'aos/dist/aos.css'
+import "bootstrap/dist/css/bootstrap.min.css";
 
 export default function Home(){
   useEffect(() => {

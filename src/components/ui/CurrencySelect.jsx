@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
-import axios from "axios";
+import apiClient from "utils/apiClient";
 
-const CACHE_KEY = "fiat_currencies";
-const CACHE_EXPIRY_KEY = "fiat_currencies_expiry";
-const CACHE_DURATION = 24 * 60 * 60 * 1000;
+let currenciesCache = null;
+let cacheTimestamp = null;
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
 export default function CurrencySelect({ value, onChange }) {
   const [currencies, setCurrencies] = useState([]);
@@ -15,40 +15,46 @@ export default function CurrencySelect({ value, onChange }) {
   useEffect(() => {
     const fetchCurrencies = async () => {
       try {
-        const cached = localStorage.getItem(CACHE_KEY);
-        const expiry = localStorage.getItem(CACHE_EXPIRY_KEY);
-        if (cached && expiry && Date.now() < Number(expiry)) {
-          setCurrencies(JSON.parse(cached));
+        if (currenciesCache && cacheTimestamp && Date.now() < cacheTimestamp) {
+          setCurrencies(currenciesCache);
           setLoading(false);
           return;
         }
 
-        const res = await axios.get("https://api.exchangerate.host/symbols");
-        const symbols = res.data?.symbols || {};
-        const formatted = Object.entries(symbols).map(([code, { description }]) => ({
-          code,
-          name: description,
+        // 🔒 Secure backend call
+        const res = await apiClient.get("/meld/fiat-currencies/");
+        const data = res.data || [];
+
+        const formatted = data.map((item) => ({
+          code: item.currencyCode,
+          name: item.name,
+          logo: item.symbolImageUrl,
         }));
 
+        currenciesCache = formatted;
+        cacheTimestamp = Date.now() + CACHE_DURATION;
         setCurrencies(formatted);
-        localStorage.setItem(CACHE_KEY, JSON.stringify(formatted));
-        localStorage.setItem(CACHE_EXPIRY_KEY, Date.now() + CACHE_DURATION);
       } catch (err) {
-        console.error("Error fetching currencies:", err);
+        console.error("Error fetching fiat currencies:", err);
       } finally {
         setLoading(false);
       }
     };
+
     fetchCurrencies();
   }, []);
 
-  const filtered = currencies.filter(
-    (c) =>
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.code.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = useMemo(() => {
+    return currencies.filter(
+      (c) =>
+        c.name.toLowerCase().includes(search.toLowerCase()) ||
+        c.code.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [currencies, search]);
 
-  const selected = currencies.find((c) => c.code === value);
+  const selected = useMemo(() => {
+    return currencies.find((c) => c.code === value);
+  }, [currencies, value]);
 
   return (
     <div className="relative w-auto">
@@ -57,9 +63,18 @@ export default function CurrencySelect({ value, onChange }) {
         onClick={() => setOpen(!open)}
         className="flex items-center justify-between w-full px-4 py-2 border border-gray-600 rounded-xl bg-[#1b1c1f] hover:bg-[#232428] transition text-gray-200 focus:outline-none"
       >
-        <span className="font-medium truncate">
-          {selected ? selected.code : "Select currency"}
-        </span>
+        <div className="flex items-center gap-2">
+          {selected?.logo && (
+            <img
+              src={selected.logo}
+              alt={selected.code}
+              className="w-5 h-5 rounded-full"
+            />
+          )}
+          <span className="font-medium truncate">
+            {selected ? selected.code : "Select currency"}
+          </span>
+        </div>
         <ChevronDown
           className={`w-4 h-4 text-gray-400 transition-transform ${
             open ? "rotate-180" : ""
@@ -68,10 +83,11 @@ export default function CurrencySelect({ value, onChange }) {
       </button>
 
       {open && (
-        <div className="absolute z-[9999] mt-2 w-[250px] bg-[#1f2023] border border-gray-700 rounded-xl shadow-lg overflow-hidden animate-fade-in text-gray-200">
+        <div className="absolute z-[99999] mt-2 w-[250px] bg-[#1f2023] border border-gray-700 rounded-xl shadow-lg overflow-hidden animate-fade-in text-gray-200">
           {loading ? (
             <div className="flex items-center justify-center p-4 text-gray-400">
-              <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading currencies...
+              <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading
+              currencies...
             </div>
           ) : (
             <>
@@ -93,6 +109,7 @@ export default function CurrencySelect({ value, onChange }) {
                       onClick={() => {
                         onChange(currency.code);
                         setOpen(false);
+                        setSearch("");
                       }}
                       className={`flex items-center gap-2 w-full px-4 py-2 text-left hover:bg-[#2a2b2f] ${
                         currency.code === value
@@ -100,6 +117,13 @@ export default function CurrencySelect({ value, onChange }) {
                           : "text-gray-200"
                       }`}
                     >
+                      {currency.logo && (
+                        <img
+                          src={currency.logo}
+                          alt={currency.code}
+                          className="w-5 h-5 rounded-full"
+                        />
+                      )}
                       <div className="flex-1 truncate">
                         <p className="font-medium">{currency.name}</p>
                         <p className="text-sm text-gray-400 uppercase">

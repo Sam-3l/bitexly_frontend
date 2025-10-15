@@ -1,16 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
-import axios from "axios";
+import apiClient from "utils/apiClient";
 
-const CACHE_KEY = "coingecko_coins";
-const CACHE_EXPIRY_KEY = "coingecko_coins_expiry";
+// In-memory cache
+let coinsCache = null;
+let cacheTimestamp = null;
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
 export default function CoinSelect({
   value,
   onChange,
   coins: parentCoins,
-  defaultSymbol = "BTC", // 👈 Default coin symbol
+  defaultSymbol = "BTC",
 }) {
   const [coins, setCoins] = useState([]);
   const [open, setOpen] = useState(false);
@@ -26,31 +27,29 @@ export default function CoinSelect({
           return;
         }
 
-        const cachedCoins = localStorage.getItem(CACHE_KEY);
-        const cachedExpiry = localStorage.getItem(CACHE_EXPIRY_KEY);
-
-        if (cachedCoins && cachedExpiry && Date.now() < Number(cachedExpiry)) {
-          setCoins(JSON.parse(cachedCoins));
+        if (coinsCache && cacheTimestamp && Date.now() < cacheTimestamp) {
+          setCoins(coinsCache);
           setLoading(false);
           return;
         }
 
-        const res = await axios.get(
-          "https://api.coingecko.com/api/v3/coins/markets",
-          {
-            params: {
-              vs_currency: "usd",
-              order: "market_cap_desc",
-              per_page: 250,
-              page: 1,
-              sparkline: false,
-            },
-          }
-        );
+        // 🔒 Secure call through backend
+        const res = await apiClient.get("/meld/crypto-currencies/");
+        const data = res.data || [];
 
-        setCoins(res.data);
-        localStorage.setItem(CACHE_KEY, JSON.stringify(res.data));
-        localStorage.setItem(CACHE_EXPIRY_KEY, Date.now() + CACHE_DURATION);
+        // Map backend data to unified format
+        const formatted = data.map((coin) => ({
+          id: coin.currencyCode,
+          name: coin.name,
+          symbol: coin.currencyCode,
+          code: coin.currencyCode,
+          logo: coin.symbolImageUrl,
+          chain: coin.chainName,
+        }));
+
+        coinsCache = formatted;
+        cacheTimestamp = Date.now() + CACHE_DURATION;
+        setCoins(formatted);
       } catch (err) {
         console.error("Error fetching coins:", err);
       } finally {
@@ -61,64 +60,81 @@ export default function CoinSelect({
     fetchCoins();
   }, [parentCoins]);
 
-  // 🔹 Automatically select a default coin if none selected yet
+  // Auto-select default coin if none is selected
   useEffect(() => {
     if (!value && coins.length) {
       const defaultCoin = coins.find(
-        (c) => c.symbol.toUpperCase() === defaultSymbol
+        (c) =>
+          c.symbol?.toUpperCase() === defaultSymbol ||
+          c.code?.toUpperCase() === defaultSymbol
       );
-      if (defaultCoin) onChange(defaultCoin.symbol.toUpperCase());
+      if (defaultCoin)
+        onChange(
+          defaultCoin.symbol?.toUpperCase() || defaultCoin.code?.toUpperCase()
+        );
     }
   }, [coins, value, defaultSymbol, onChange]);
 
-  const filteredCoins = coins.filter(
-    (coin) =>
-      coin.name.toLowerCase().includes(search.toLowerCase()) ||
-      coin.symbol.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredCoins = useMemo(() => {
+    return coins.filter(
+      (coin) =>
+        coin.name?.toLowerCase().includes(search.toLowerCase()) ||
+        coin.symbol?.toLowerCase().includes(search.toLowerCase()) ||
+        coin.code?.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [coins, search]);
 
-  const selectedCoin = coins.find(
-    (c) => c.symbol.toUpperCase() === value
-  );
+  const selectedCoin = useMemo(() => {
+    return coins.find(
+      (c) =>
+        c.symbol?.toUpperCase() === value || c.code?.toUpperCase() === value
+    );
+  }, [coins, value]);
 
   return (
     <div className="relative w-auto">
-    {/* Selected Coin Button */}
+      {/* Selected Coin Button */}
       <button
         type="button"
         onClick={() => setOpen(!open)}
         className="flex items-center justify-between w-full max-w-xs px-4 py-2 border border-gray-600 rounded-xl bg-[#1b1c1f] hover:bg-[#232428] transition text-gray-200 focus:outline-none"
-        >
-        <div className="flex items-center gap-2 overflow-hidden">
-            {selectedCoin && (
-            <img
-                src={selectedCoin.image}
+      >
+        {selectedCoin ? (
+          <div className="flex items-center gap-2 overflow-hidden">
+            {selectedCoin.logo && (
+              <img
+                src={selectedCoin.logo}
                 alt={selectedCoin.symbol}
                 className="w-5 h-5 rounded-full flex-shrink-0"
-            />
+              />
             )}
             <span className="font-medium text-sm sm:text-base pr-[2px]">
-            {selectedCoin ? selectedCoin.symbol.toUpperCase() : "Select coin"}
+              {selectedCoin.symbol?.toUpperCase()}
             </span>
-        </div>
-
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="font-medium text-sm sm:text-base">Loading...</span>
+          </div>
+        )}
         <ChevronDown
-            className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${
+          className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${
             open ? "rotate-180" : ""
-            }`}
+          }`}
         />
       </button>
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute z-[9999] mt-2 w-[250px] bg-[#1f2023] border border-gray-700 rounded-xl shadow-lg overflow-hidden animate-fade-in text-gray-200">
+        <div className="absolute z-[99999] mt-2 w-[250px] bg-[#1f2023] border border-gray-700 rounded-xl shadow-lg overflow-hidden animate-fade-in text-gray-200">
           {loading ? (
             <div className="flex items-center justify-center p-4 text-gray-400">
               <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading coins...
             </div>
           ) : (
             <>
-              {/* Search */}
+              {/* Search bar */}
               <div className="p-2 border-b border-gray-700 bg-[#25262a]">
                 <input
                   type="text"
@@ -134,22 +150,25 @@ export default function CoinSelect({
                 {filteredCoins.length ? (
                   filteredCoins.map((coin) => (
                     <button
-                      key={coin.id}
+                      key={coin.symbol}
                       onClick={() => {
-                        onChange(coin.symbol.toUpperCase());
+                        onChange(coin.symbol?.toUpperCase());
                         setOpen(false);
+                        setSearch("");
                       }}
                       className={`flex items-center gap-2 w-full px-4 py-2 text-left hover:bg-[#2a2b2f] ${
-                        coin.symbol.toUpperCase() === value
+                        coin.symbol?.toUpperCase() === value
                           ? "bg-[#2a2b2f] text-blue-400"
                           : "text-gray-200"
                       }`}
                     >
-                      <img
-                        src={coin.image}
-                        alt={coin.symbol}
-                        className="w-5 h-5 rounded-full"
-                      />
+                      {coin.logo && (
+                        <img
+                          src={coin.logo}
+                          alt={coin.symbol}
+                          className="w-5 h-5 rounded-full"
+                        />
+                      )}
                       <div className="flex-1 truncate">
                         <p className="font-medium">{coin.name}</p>
                         <p className="text-sm text-gray-400 uppercase">

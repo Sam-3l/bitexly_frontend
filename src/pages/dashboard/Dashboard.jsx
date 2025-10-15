@@ -8,10 +8,10 @@ export default function Dashboard() {
   usePageTitle("Dashboard");
 
   return (
-    <div className="relative min-h-screen bg-gray-900 overflow-hidden">
+    <div className="relative min-h-screen bg-gray-900 overflow-x-hidden">
 
       {/* Blurred animated background */}
-      <div className="absolute inset-0">
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <motion.div
           className="absolute w-[800px] h-[800px] bg-purple-700/30 rounded-full top-[-200px] left-[-200px] filter blur-3xl"
           animate={{ x: [0, 200, 0], y: [0, 150, 0], scale: [1, 1.2, 1] }}
