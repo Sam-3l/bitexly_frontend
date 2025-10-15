@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
-import apiClient from "utils/apiClient";
+import apiClient from "../../utils/apiClient";
 
 // In-memory cache
 let coinsCache = null;
