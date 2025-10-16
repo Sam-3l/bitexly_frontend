@@ -142,7 +142,7 @@ export default function BuyFlow() {
 
   useDebounce(fetchQuote, 600, [fiatAmount, fromCoin, toCurrency]);
 
-  const validateWalletAddress = async () => {
+  const validateWalletAddressFunc = async () => {
     if (!walletAddress.trim()) {
       setAddressValid(false);
       return;
@@ -162,7 +162,7 @@ export default function BuyFlow() {
 
   useEffect(() => {
     if (walletAddress) {
-      const timer = setTimeout(validateWalletAddress, 800);
+      const timer = setTimeout(validateWalletAddressFunc, 800);
       return () => clearTimeout(timer);
     }
   }, [walletAddress]);

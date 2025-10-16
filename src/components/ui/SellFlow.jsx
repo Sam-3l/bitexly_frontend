@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { ArrowDownUp, Loader2, X, ChevronLeft, Check, AlertCircle } from "lucide-react";
+import { validateBankDetails } from "../../utils/bankValidator";
 import CoinSelect from "./CoinSelect";
 import CurrencySelect from "./CurrencySelect";
 import apiClient from "../../utils/apiClient";
@@ -22,6 +23,8 @@ export default function SellFlow() {
   const [fromCoin, setFromCoin] = useState("BTC");
   const [toCurrency, setToCurrency] = useState("USD");
   const [userTyped, setUserTyped] = useState("crypto");
+
+  const [bankValidationError, setBankValidationError] = useState(null);
 
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [quoteError, setQuoteError] = useState(null);
@@ -147,25 +150,25 @@ export default function SellFlow() {
   useDebounce(fetchQuote, 600, [cryptoAmount, fromCoin, toCurrency]);
 
   // Validate bank details
-  const validateBankDetails = async () => {
+  const validateBankDetailsFunc = async () => {
     const { accountNumber, accountName, bankName } = bankDetails;
     
     if (!accountNumber.trim() || !accountName.trim() || !bankName.trim()) {
       setBankDetailsValid(false);
+      setBankValidationError(null);
       return;
     }
-
+  
     setValidatingBankDetails(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 500));
-      // Basic validation: account number should be numeric and reasonable length
-      const isValidAccount = /^\d{10,20}$/.test(accountNumber);
-      const isValidName = accountName.length >= 3;
-      const isValidBank = bankName.length >= 2;
       
-      setBankDetailsValid(isValidAccount && isValidName && isValidBank);
+      const result = validateBankDetails(bankDetails, toCurrency);
+      setBankDetailsValid(result.isValid);
+      setBankValidationError(result.isValid ? null : result.error);
     } catch (err) {
       setBankDetailsValid(false);
+      setBankValidationError("Validation error occurred");
     } finally {
       setValidatingBankDetails(false);
     }
@@ -173,10 +176,13 @@ export default function SellFlow() {
 
   useEffect(() => {
     if (bankDetails.accountNumber || bankDetails.accountName || bankDetails.bankName) {
-      const timer = setTimeout(validateBankDetails, 800);
+      const timer = setTimeout(validateBankDetailsFunc, 800);
       return () => clearTimeout(timer);
+    } else {
+      setBankDetailsValid(null);
+      setBankValidationError(null);
     }
-  }, [bankDetails]);
+  }, [bankDetails, toCurrency]);
 
   const goToStep2 = () => {
     if (!cryptoAmount || Number(cryptoAmount) <= 0 || quoteError || !selectedProvider) return;
@@ -392,7 +398,12 @@ export default function SellFlow() {
             {/* Routing Number (Optional for international) */}
             {toCurrency !== "NGN" && (
               <div className="border border-white/10 bg-gray-800/40 rounded-2xl p-4">
-                <label className="text-xs text-gray-400 block mb-2">Routing Number (Optional)</label>
+                <label className="text-xs text-gray-400 block mb-2">
+                    {toCurrency === "USD" ? "Routing Number (Optional)" : 
+                    toCurrency === "GBP" ? "Sort Code (Optional)" : 
+                    toCurrency === "EUR" ? "BIC/SWIFT (Optional)" : 
+                    "Routing Number (Optional)"}
+                </label>
                 <input
                   type="text"
                   value={bankDetails.routingNumber}
@@ -417,9 +428,10 @@ export default function SellFlow() {
             )}
 
             {!validatingBankDetails && bankDetailsValid === false && (bankDetails.accountNumber || bankDetails.accountName || bankDetails.bankName) && (
-              <div className="flex items-center gap-2 text-xs text-red-400">
-                <AlertCircle className="w-3 h-3" /> Please check your bank details
-              </div>
+            <div className="flex items-start gap-2 text-xs text-red-400 bg-red-500/10 p-2 rounded">
+                <AlertCircle className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                <span>{bankValidationError || "Please check your bank details"}</span>
+            </div>
             )}
 
             <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3">
