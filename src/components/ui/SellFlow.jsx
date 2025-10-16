@@ -5,6 +5,8 @@ import CoinSelect from "./CoinSelect";
 import CurrencySelect from "./CurrencySelect";
 import apiClient from "../../utils/apiClient";
 import ProviderSelect from "../common/ProviderSelect";
+import PaymentMethodSelect from "../common/PaymentMethodSelect";
+import IframeWithFallback from "../common/IframeWithFallback";
 
 function useDebounce(callback, delay, deps) {
   useEffect(() => {
@@ -25,6 +27,11 @@ export default function SellFlow() {
   const [userTyped, setUserTyped] = useState("crypto");
 
   const [bankValidationError, setBankValidationError] = useState(null);
+
+  // Payment Method (if needed by provider)
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null);
+  const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(false);
 
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [quoteError, setQuoteError] = useState(null);
@@ -53,6 +60,38 @@ export default function SellFlow() {
       ? num.toLocaleString(undefined, { maximumFractionDigits: 2 })
       : num.toLocaleString(undefined, { maximumFractionDigits: decimals });
   };
+
+  // Add this function in both BuyFlow and SellFlow
+  const fetchPaymentMethods = useCallback(async () => {
+    if (!toCurrency || !fromCoin || !selectedProvider) return;
+  
+    setLoadingPaymentMethods(true);
+    try {
+      const params = {
+        countries: toCurrency.slice(0, 2),
+        fiatCurrencies: toCurrency,
+        cryptoCurrencies: fromCoin,
+        statuses: 'LIVE',
+        serviceProviders: selectedProvider.serviceProvider || selectedProvider.provider,
+      };
+      
+      const res = await apiClient.get("/meld/payment-methods/", { params });
+      const data = res.data?.data || res.data || [];
+      setPaymentMethods(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Payment methods error:", err);
+      setPaymentMethods([]);
+    } finally {
+      setLoadingPaymentMethods(false);
+    }
+  }, [toCurrency, fromCoin, selectedProvider]);
+  
+  // Trigger fetch when provider changes
+  useEffect(() => {
+    if (selectedProvider) {
+      fetchPaymentMethods();
+    }
+  }, [selectedProvider, fetchPaymentMethods]);
 
   // Fetch quotes from all providers
   const fetchQuote = useCallback(async () => {
@@ -207,6 +246,7 @@ export default function SellFlow() {
           sourceAmount: Number(cryptoAmount),
           destinationCurrencyCode: toCurrency,
           serviceProvider: selectedProvider.serviceProvider || selectedProvider.provider,
+          paymentMethod: selectedPaymentMethod?.type || selectedPaymentMethod?.id,
           // Include bank details if needed by the API
           bankDetails: {
             accountNumber: bankDetails.accountNumber,
@@ -274,12 +314,24 @@ export default function SellFlow() {
           </div>
 
           {/* Provider Selection Dropdown */}
-          <div className="relative z-30">
+          <div className="relative z-[10000]">
             <ProviderSelect
               availableProviders={availableProviders}
               selectedProvider={selectedProvider}
               setSelectedProvider={setSelectedProvider}
               loadingQuote={loadingQuote}
+            />
+          </div>
+
+          {/* Payment Method Selection */}
+          <div className="relative z-[9999]">
+            <PaymentMethodSelect
+                availableMethods={paymentMethods}
+                selectedMethod={selectedPaymentMethod}
+                setSelectedMethod={setSelectedPaymentMethod}
+                loadingMethods={loadingPaymentMethods}
+                currency={toCurrency}
+                action="SELL"
             />
           </div>
 
@@ -334,7 +386,7 @@ export default function SellFlow() {
 
           <button
             onClick={goToStep2}
-            disabled={!cryptoAmount || Number(cryptoAmount) <= 0 || quoteError || loadingQuote || !selectedProvider}
+            disabled={!cryptoAmount || Number(cryptoAmount) <= 0 || quoteError || loadingQuote || !selectedProvider || !selectedPaymentMethod}
             className={`w-full py-3 text-white font-semibold rounded-2xl transition-colors duration-200 ${
               cryptoAmount && Number(cryptoAmount) > 0 && !quoteError && !loadingQuote && selectedProvider
                 ? "bg-indigo-600 hover:bg-indigo-700"
@@ -462,20 +514,16 @@ export default function SellFlow() {
       {/* Widget Modal */}
       {widgetUrl && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[9999]">
-          <div className="bg-gray-900 rounded-2xl w-[95%] md:w-[80%] h-[80vh] shadow-xl border border-white/10 relative">
+            <div className="bg-gray-900 rounded-2xl w-[95%] md:w-[80%] h-[80vh] shadow-xl border border-white/10 relative">
             <button
-              onClick={() => setWidgetUrl(null)}
-              className="absolute top-3 right-3 bg-gray-800 text-gray-300 hover:text-white rounded-full p-2 z-10"
+                onClick={() => setWidgetUrl(null)}
+                className="absolute top-3 right-3 bg-gray-800 text-gray-300 hover:text-white rounded-full p-2 z-10"
             >
-              <X className="w-5 h-5" />
+                <X className="w-5 h-5" />
             </button>
-            <iframe
-              src={widgetUrl}
-              title="Meld Widget"
-              className="w-full h-full rounded-2xl border-0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            />
-          </div>
+
+            <IframeWithFallback src={widgetUrl} fallbackUrl={widgetUrl} />
+            </div>
         </div>
       )}
     </>
