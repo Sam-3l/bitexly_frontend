@@ -97,6 +97,7 @@ export default function CoinSelect({
       <button
         type="button"
         onClick={() => setOpen(!open)}
+        disabled={!selectedCoin}
         className="flex items-center justify-between w-full max-w-xs px-4 py-2 border border-gray-600 rounded-xl bg-[#1b1c1f] hover:bg-[#232428] transition text-gray-200 focus:outline-none"
       >
         {selectedCoin ? (

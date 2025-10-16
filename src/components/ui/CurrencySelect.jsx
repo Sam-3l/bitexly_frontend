@@ -49,7 +49,7 @@ export default function CurrencySelect({
     fetchCurrencies();
   }, []);
 
-  // ✅ Auto-select default currency (e.g. NGN)
+  // Auto-select default currency (e.g. NGN)
   useEffect(() => {
     if (!value && currencies.length) {
       const defaultCurrency = currencies.find(
@@ -78,10 +78,10 @@ export default function CurrencySelect({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        disabled={loading}
+        disabled={!selected}
         className="flex items-center justify-between w-full max-w-xs px-4 py-2 border border-gray-600 rounded-xl bg-[#1b1c1f] hover:bg-[#232428] transition text-gray-200 focus:outline-none"
       >
-        {loading ? (
+        {!selected ? (
           <div className="flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin" />
             <span className="font-medium text-sm sm:text-base">Loading...</span>
