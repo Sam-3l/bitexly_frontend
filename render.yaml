@@ -1,5 +1,5 @@
 staticSites:
-  - name: bitexly_frontend
+  - name: bitexly
     buildCommand: npm run build
     publishDir: dist
     redirects:
