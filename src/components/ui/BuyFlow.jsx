@@ -261,7 +261,15 @@ export default function BuyFlow() {
 
   const goToStep2 = () => {
     if (!fiatAmount || Number(fiatAmount) <= 0 || quoteError || !selectedProvider) return;
-    setCurrentStep(2);
+    
+    const providerName = (selectedProvider.serviceProvider || selectedProvider.provider || '').toUpperCase();
+    
+    // Skip wallet address step for OnRamp since their widget collects it
+    if (providerName === 'ONRAMP') {
+      handleProceedToCheckout();
+    } else {
+      setCurrentStep(2);
+    }
   };
 
   const goBack = () => {
@@ -269,10 +277,39 @@ export default function BuyFlow() {
   };
 
   const handleProceedToCheckout = async () => {
-    if (!selectedProvider || !walletAddress || !addressValid) return;
-  
+    const providerName = (selectedProvider?.serviceProvider || selectedProvider?.provider || '').toUpperCase();
+    
+    // OnRamp doesn't need wallet validation since their widget collects it
+    if (providerName !== 'ONRAMP' && (!walletAddress || !addressValid)) {
+      return;
+    }
+    
+    if (!selectedProvider) return;
+    
     setCreatingSession(true);
     try {
+      // Get user from localStorage (matches your AuthContext structure)
+      const storedUser = localStorage.getItem("bitexly_user");
+      
+      if (!storedUser) {
+        alert("User session not found. Please log in again.");
+        return;
+      }
+  
+      const userData = JSON.parse(storedUser);
+      const user_details = userData.user_details || {};
+      
+      // Extract customerId - your user object has the data directly
+      const customerId = user_details.id || user_details.email || user_details.username;
+  
+      if (!customerId) {
+        console.error("User data:", userData);
+        alert("Unable to identify user. Please log in again.");
+        return;
+      }
+  
+      console.log("✅ User identified:", customerId);
+
       const providerName = (selectedProvider.serviceProvider || selectedProvider.provider || '').toUpperCase();
       let url;
   
