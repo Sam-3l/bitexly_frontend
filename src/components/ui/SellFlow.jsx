@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { ArrowDownUp, Loader2, X, ChevronLeft, Check, AlertCircle } from "lucide-react";
 import { validateBankDetails } from "../../utils/bankValidator";
+import { onrampClient } from "../../utils/onrampClient";
+import { moonpayClient } from "../../utils/moonpayClient";
 import CoinSelect from "./CoinSelect";
 import CurrencySelect from "./CurrencySelect";
 import apiClient from "../../utils/apiClient";
@@ -44,7 +46,7 @@ export default function SellFlow() {
     accountNumber: "",
     accountName: "",
     bankName: "",
-    routingNumber: "", // For international transfers if needed
+    routingNumber: "",
   });
   const [validatingBankDetails, setValidatingBankDetails] = useState(false);
   const [bankDetailsValid, setBankDetailsValid] = useState(null);
@@ -61,23 +63,48 @@ export default function SellFlow() {
       : num.toLocaleString(undefined, { maximumFractionDigits: decimals });
   };
 
-  // Add this function in both BuyFlow and SellFlow
+  // Check if provider is direct integration
+  const isDirectProvider = (provider) => {
+    const providerName = (provider?.serviceProvider || provider?.provider || '').toUpperCase();
+    return providerName === 'ONRAMP' || providerName === 'MOONPAY';
+  };
+
+  // Fetch payment methods
   const fetchPaymentMethods = useCallback(async () => {
     if (!toCurrency || !fromCoin || !selectedProvider) return;
   
     setLoadingPaymentMethods(true);
     try {
-      const params = {
-        countries: toCurrency.slice(0, 2),
-        fiatCurrencies: toCurrency,
-        cryptoCurrencies: fromCoin,
-        statuses: 'LIVE',
-        serviceProviders: selectedProvider.serviceProvider || selectedProvider.provider,
-      };
+      const providerName = (selectedProvider.serviceProvider || selectedProvider.provider || '').toUpperCase();
       
-      const res = await apiClient.get("/meld/payment-methods/", { params });
-      const data = res.data?.data || res.data || [];
-      setPaymentMethods(Array.isArray(data) ? data : []);
+      if (providerName === 'ONRAMP') {
+        const methods = await onrampClient.getPaymentMethods({
+          country: toCurrency.slice(0, 2),
+          fiatCurrency: toCurrency,
+          cryptoCurrency: fromCoin,
+          type: 'sell',
+        });
+        setPaymentMethods(methods);
+      } else if (providerName === 'MOONPAY') {
+        const methods = await moonpayClient.getPaymentMethods({
+          country: toCurrency.slice(0, 2),
+          fiatCurrency: toCurrency,
+        });
+        setPaymentMethods(methods);
+      } else {
+        // Meld provider
+        const params = {
+          countries: toCurrency.slice(0, 2),
+          fiatCurrencies: toCurrency,
+          cryptoCurrencies: fromCoin,
+          statuses: 'LIVE',
+          serviceProviders: selectedProvider.serviceProvider || selectedProvider.provider,
+        };
+        
+        const res = await apiClient.get("/meld/payment-methods/", { params });
+        const data = res.data?.data || res.data || [];
+        setPaymentMethods(Array.isArray(data) ? data : []);
+      }
     } catch (err) {
       console.error("Payment methods error:", err);
       setPaymentMethods([]);
@@ -93,7 +120,7 @@ export default function SellFlow() {
     }
   }, [selectedProvider, fetchPaymentMethods]);
 
-  // Fetch quotes from all providers
+  // Fetch quotes from all providers (Meld + Direct)
   const fetchQuote = useCallback(async () => {
     setQuoteError(null);
     setCurrentQuote(null);
@@ -103,60 +130,86 @@ export default function SellFlow() {
 
       setLoadingQuote(true);
 
-      const payload = {
+      const quoteParams = {
+        sourceAmount: Number(cryptoAmount),
+        sourceCurrency: fromCoin,
+        destinationCurrency: toCurrency,
+        countryCode: toCurrency === "NGN" ? "NG" : toCurrency === "USD" ? "US" : toCurrency.slice(0, 2),
+      };
+
+      // Fetch from all sources in parallel
+      const quotePromises = [];
+
+      // 1. Meld providers
+      const meldPayload = {
         action: "SELL",
         sourceAmount: Number(cryptoAmount),
         sourceCurrencyCode: fromCoin,
         destinationCurrencyCode: toCurrency,
         countryCode: toCurrency === "NGN" ? "NG" : toCurrency === "USD" ? "US" : toCurrency.slice(0, 2),
       };
+      quotePromises.push(
+        apiClient.post("/meld/crypto-quote/", meldPayload)
+          .then(res => {
+            const data = res.data;
+            const inner = data?.data || data;
+            return inner?.quotes || (inner?.quote ? [inner.quote] : []);
+          })
+          .catch(err => {
+            console.error("Meld quote error:", err);
+            return [];
+          })
+      );
 
-      const res = await apiClient.post("/meld/crypto-quote/", payload);
-      const data = res.data;
-      const inner = data?.data || data;
+      // 2. OnRamp
+      quotePromises.push(
+        onrampClient.getSellQuote(quoteParams)
+          .then(quote => [quote])
+          .catch(err => {
+            console.error("OnRamp quote error:", err);
+            return [];
+          })
+      );
 
-      const quotes = inner?.quotes || (inner?.quote ? [inner.quote] : []);
+      // 3. MoonPay
+      quotePromises.push(
+        moonpayClient.getSellQuote(quoteParams)
+          .then(quote => [quote])
+          .catch(err => {
+            console.error("MoonPay quote error:", err);
+            return [];
+          })
+      );
 
-      if (quotes.length === 0) {
+      const results = await Promise.all(quotePromises);
+      const allQuotes = results.flat();
+
+      if (allQuotes.length === 0) {
         setQuoteError("No providers available for this transaction");
         setAvailableProviders([]);
         setSelectedProvider(null);
         return;
       }
 
-      setAvailableProviders(quotes);
+      setAvailableProviders(allQuotes);
 
       // If no provider selected yet, select the first one
       if (!selectedProvider) {
-        setSelectedProvider(quotes[0]);
+        setSelectedProvider(allQuotes[0]);
       } else {
         // Keep the same provider if it still exists in new quotes
-        const stillExists = quotes.find(
+        const stillExists = allQuotes.find(
           q => (q.serviceProvider || q.provider) === (selectedProvider.serviceProvider || selectedProvider.provider)
         );
         if (stillExists) {
           setSelectedProvider(stillExists);
         } else {
-          setSelectedProvider(quotes[0]);
+          setSelectedProvider(allQuotes[0]);
         }
       }
     } catch (err) {
       console.error("Quote error:", err);
-      const resp = err?.response?.data;
-      
-      if (resp) {
-        const fallbackMessage = resp.message || resp.error || "Unable to fetch quote";
-        const maybeMin = resp.minimumAmount ?? resp.minAmount ?? resp.min_source_amount ?? null;
-
-        if (maybeMin) {
-          setQuoteError(`Amount is below minimum: ${formatNumber(maybeMin)} ${fromCoin}`);
-        } else {
-          setQuoteError(fallbackMessage);
-        }
-      } else {
-        setQuoteError("Network error while fetching quote.");
-      }
-      
+      setQuoteError("Unable to fetch quotes. Please try again.");
       setAvailableProviders([]);
       setSelectedProvider(null);
     } finally {
@@ -234,41 +287,71 @@ export default function SellFlow() {
 
   const handleProceedToCheckout = async () => {
     if (!selectedProvider || !bankDetailsValid) return;
-
+  
     setCreatingSession(true);
-    try {
-      const user = JSON.parse(localStorage.getItem("bitexly_user") || "{}");
-      
-      const payload = {
-        sessionData: {
-          countryCode: toCurrency === "NGN" ? "NG" : toCurrency === "USD" ? "US" : toCurrency.slice(0, 2),
-          sourceCurrencyCode: fromCoin,
+    try {  
+      const providerName = (selectedProvider.serviceProvider || selectedProvider.provider || '').toUpperCase();
+      let url;
+  
+      if (providerName === 'ONRAMP') {
+        url = await onrampClient.generateSellUrl({
+          sourceCurrency: fromCoin,
+          destinationCurrency: toCurrency,
           sourceAmount: Number(cryptoAmount),
-          destinationCurrencyCode: toCurrency,
-          serviceProvider: selectedProvider.serviceProvider || selectedProvider.provider,
-          paymentMethod: selectedPaymentMethod?.type || selectedPaymentMethod?.id,
-          // Include bank details if needed by the API
-          bankDetails: {
-            accountNumber: bankDetails.accountNumber,
-            accountName: bankDetails.accountName,
-            bankName: bankDetails.bankName,
-            routingNumber: bankDetails.routingNumber || undefined,
+        });
+  
+      } else if (providerName === 'MOONPAY') {
+        url = await moonpayClient.generateSellUrl({
+          sourceCurrency: fromCoin,
+          destinationCurrency: toCurrency,
+          sourceAmount: Number(cryptoAmount),
+          bankDetails,
+        });
+  
+      } else {
+        // Meld provider
+        const payload = {
+          sessionData: {
+            countryCode: toCurrency === "NGN" ? "NG" : toCurrency === "USD" ? "US" : toCurrency.slice(0, 2),
+            sourceCurrencyCode: fromCoin,
+            sourceAmount: Number(cryptoAmount),
+            destinationCurrencyCode: toCurrency,
+            serviceProvider: selectedProvider.serviceProvider || selectedProvider.provider,
+            paymentMethod: selectedPaymentMethod?.type || selectedPaymentMethod?.id,
+            bankDetails: {
+              accountNumber: bankDetails.accountNumber,
+              accountName: bankDetails.accountName,
+              bankName: bankDetails.bankName,
+              routingNumber: bankDetails.routingNumber || undefined,
+            },
           },
-        },
-        sessionType: "SELL",
-        externalCustomerId: user.id || user.email,
-      };
-
-      const res = await apiClient.post("/meld/session-widget/", payload);
-      const data = res.data;
-      const url = data.widgetUrl || data.data?.widgetUrl;
-
+          sessionType: "SELL",
+          externalCustomerId: customerId,
+        };
+  
+        console.log('Meld Sell Request:', payload);
+  
+        const res = await apiClient.post("/meld/session-widget/", payload);
+        const data = res.data;
+        url = data.widgetUrl || data.data?.widgetUrl;
+      }
+  
       if (!url) throw new Error("No widget URL returned");
       
+      console.log("✅ Widget URL generated:", url);
       setWidgetUrl(url);
+  
     } catch (err) {
-      console.error("Session creation error:", err);
-      alert("Unable to start sell session. Please try again.");
+      console.error("❌ Session creation error:", err);
+      console.error("Error response:", err.response?.data);
+      
+      const errorMsg = err.response?.data?.message 
+        || err.response?.data?.error
+        || err.response?.data?.details
+        || err.message 
+        || "Unable to start sell session. Please try again.";
+      
+      alert(errorMsg);
     } finally {
       setCreatingSession(false);
     }
@@ -386,7 +469,7 @@ export default function SellFlow() {
 
           <button
             onClick={goToStep2}
-            disabled={!cryptoAmount || Number(cryptoAmount) <= 0 || quoteError || loadingQuote || !selectedProvider || !selectedPaymentMethod}
+            disabled={!cryptoAmount || Number(cryptoAmount) <= 0 || quoteError || loadingQuote || !selectedProvider}
             className={`w-full py-3 text-white font-semibold rounded-2xl transition-colors duration-200 ${
               cryptoAmount && Number(cryptoAmount) > 0 && !quoteError && !loadingQuote && selectedProvider
                 ? "bg-indigo-600 hover:bg-indigo-700"
