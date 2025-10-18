@@ -1,6 +1,7 @@
 import { useState } from "react";
 import BuyFlow from "./BuyFlow";
 import SellFlow from "./SellFlow";
+import SwapFlow from "./SwapFlow";
 import { AlertCircle } from "lucide-react";
 
 export default function ExchangeBox() {
@@ -26,15 +27,7 @@ export default function ExchangeBox() {
       {/* Render appropriate flow */}
       {activeTab === "buy" && <BuyFlow />}
       {activeTab === "sell" && <SellFlow />}
-      {activeTab === "swap" && (
-        <div className="space-y-6 relative">
-          <div className="text-center py-12 text-gray-400">
-            <AlertCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p className="text-lg font-semibold">Swap Feature Coming Soon</p>
-            <p className="text-sm mt-2">We're working on bringing you the best swap experience.</p>
-          </div>
-        </div>
-      )}
+      {activeTab === "swap" && <SwapFlow />}
     </div>
   );
 }
