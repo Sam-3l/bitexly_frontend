@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { ChevronDown, Loader2 } from "lucide-react";
+import { ChevronDown, Loader2, X, Search } from "lucide-react";
 import apiClient from "../../utils/apiClient";
 
 // In-memory cache
@@ -26,7 +26,6 @@ export default function CurrencySelect({
           return;
         }
 
-        // 🔒 Secure backend call
         const res = await apiClient.get("/meld/fiat-currencies/");
         const data = res.data?.data || res.data || [];
 
@@ -49,7 +48,6 @@ export default function CurrencySelect({
     fetchCurrencies();
   }, []);
 
-  // Auto-select default currency (e.g. NGN)
   useEffect(() => {
     if (!value && currencies.length) {
       const defaultCurrency = currencies.find(
@@ -59,7 +57,18 @@ export default function CurrencySelect({
     }
   }, [currencies, value, defaultSymbol, onChange]);
 
-  // Filter + selected
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [open]);
+
   const filtered = useMemo(() => {
     return currencies.filter(
       (c) =>
@@ -73,8 +82,8 @@ export default function CurrencySelect({
   }, [currencies, value]);
 
   return (
-    <div className="relative w-auto">
-      {/* Button — fully adaptive like CoinSelect */}
+    <>
+      {/* Button */}
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -96,7 +105,7 @@ export default function CurrencySelect({
               />
             )}
             <span className="font-medium text-sm sm:text-base pr-[2px]">
-              {selected ? selected.code.toUpperCase() : "Select currency"}
+              {selected.code.toUpperCase()}
             </span>
           </div>
         )}
@@ -108,60 +117,89 @@ export default function CurrencySelect({
         />
       </button>
 
-      {/* Dropdown */}
-      {open && !loading && (
-        <div className="absolute z-[99999] mt-2 w-[250px] bg-[#1f2023] border border-gray-700 rounded-xl shadow-lg overflow-hidden animate-fade-in text-gray-200">
-          {/* Search */}
-          <div className="p-2 border-b border-gray-700 bg-[#25262a]">
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search currency..."
-              className="w-full px-3 py-2 border border-gray-600 rounded-lg text-sm bg-[#2a2b2f] text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+      {/* Modal Overlay */}
+      {open && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6">
+          {/* Modal Container */}
+          <div className="relative w-full max-w-md bg-[#1f2023] rounded-2xl shadow-2xl flex flex-col max-h-[85vh] sm:max-h-[600px] my-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-200">Select Currency</h2>
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  setSearch("");
+                }}
+                className="p-1 hover:bg-gray-700 rounded-lg transition"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
 
-          {/* Currency list */}
-          <div className="max-h-64 overflow-y-auto">
-            {filtered.length ? (
-              filtered.map((currency) => (
-                <button
-                  key={currency.code}
-                  onClick={() => {
-                    onChange(currency.code);
-                    setOpen(false);
-                    setSearch("");
-                  }}
-                  className={`flex items-center gap-2 w-full px-4 py-2 text-left hover:bg-[#2a2b2f] ${
-                    currency.code === value
-                      ? "bg-[#2a2b2f] text-blue-400"
-                      : "text-gray-200"
-                  }`}
-                >
-                  {currency.logo && (
-                    <img
-                      src={currency.logo}
-                      alt={currency.code}
-                      className="w-5 h-5 rounded-full"
-                    />
-                  )}
-                  <div className="flex-1 truncate">
-                    <p className="font-medium">{currency.name}</p>
-                    <p className="text-sm text-gray-400 uppercase">
-                      {currency.code}
-                    </p>
-                  </div>
-                </button>
-              ))
-            ) : (
-              <div className="p-4 text-gray-400 text-center">
-                No results found
+            {loading ? (
+              <div className="flex items-center justify-center p-8 text-gray-400">
+                <Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading currencies...
               </div>
+            ) : (
+              <>
+                {/* Search Bar */}
+                <div className="p-4 border-b border-gray-700">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search currency..."
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-600 rounded-lg text-sm bg-[#2a2b2f] text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                {/* Currency List */}
+                <div className="flex-1 overflow-y-auto">
+                  {filtered.length ? (
+                    filtered.map((currency) => (
+                      <button
+                        key={currency.code}
+                        onClick={() => {
+                          onChange(currency.code);
+                          setOpen(false);
+                          setSearch("");
+                        }}
+                        className={`flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-[#2a2b2f] transition ${
+                          currency.code === value
+                            ? "bg-[#2a2b2f] text-blue-400"
+                            : "text-gray-200"
+                        }`}
+                      >
+                        {currency.logo && (
+                          <img
+                            src={currency.logo}
+                            alt={currency.code}
+                            className="w-8 h-8 rounded-full flex-shrink-0"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{currency.name}</p>
+                          <p className="text-sm text-gray-400 uppercase">
+                            {currency.code}
+                          </p>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="p-8 text-gray-400 text-center">
+                      No results found
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

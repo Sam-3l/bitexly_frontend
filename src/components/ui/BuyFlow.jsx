@@ -411,28 +411,6 @@ export default function BuyFlow() {
             </div>
           </div>
 
-          {/* Provider Selection Dropdown */}
-          <div className="relative z-[10000]">
-            <ProviderSelect
-                availableProviders={availableProviders}
-                selectedProvider={selectedProvider}
-                setSelectedProvider={setSelectedProvider}
-                loadingQuote={loadingQuote}
-            />
-          </div>
-
-          {/* Payment Method Selection */}
-          <div className="relative z-[9999]">
-            <PaymentMethodSelect
-                availableMethods={paymentMethods}
-                selectedMethod={selectedPaymentMethod}
-                setSelectedMethod={setSelectedPaymentMethod}
-                loadingMethods={loadingPaymentMethods}
-                currency={toCurrency}
-                action="BUY"
-            />
-          </div>
-
           {/* Swap Icon */}
           <div className="flex justify-center relative z-10">
             <div className="p-2 bg-indigo-600 rounded-full transition-colors duration-200 hover:bg-indigo-700 cursor-pointer">
@@ -480,6 +458,28 @@ export default function BuyFlow() {
                 <span>{quoteError}</span>
               </div>
             )}
+          </div>
+
+          {/* Provider Selection Dropdown */}
+          <div className="relative z-[8]">
+            <ProviderSelect
+                availableProviders={availableProviders}
+                selectedProvider={selectedProvider}
+                setSelectedProvider={setSelectedProvider}
+                loadingQuote={loadingQuote}
+            />
+          </div>
+
+          {/* Payment Method Selection */}
+          <div className="relative z-[4]">
+            <PaymentMethodSelect
+                availableMethods={paymentMethods}
+                selectedMethod={selectedPaymentMethod}
+                setSelectedMethod={setSelectedPaymentMethod}
+                loadingMethods={loadingPaymentMethods}
+                currency={toCurrency}
+                action="BUY"
+            />
           </div>
 
           <button
