@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { ArrowDownUp, Loader2, X, ChevronLeft, Check, AlertCircle } from "lucide-react";
 import { validateBankDetails } from "../../utils/bankValidator";
+import { onrampClient } from "../../utils/onrampClient";
+import { moonpayClient } from "../../utils/moonpayClient";
 import CoinSelect from "./CoinSelect";
 import CurrencySelect from "./CurrencySelect";
 import apiClient from "../../utils/apiClient";
@@ -39,16 +41,6 @@ export default function SellFlow() {
   const [selectedProvider, setSelectedProvider] = useState(null);
   const [currentQuote, setCurrentQuote] = useState(null);
 
-  // Step 2: Bank details
-  const [bankDetails, setBankDetails] = useState({
-    accountNumber: "",
-    accountName: "",
-    bankName: "",
-    routingNumber: "", // For international transfers if needed
-  });
-  const [validatingBankDetails, setValidatingBankDetails] = useState(false);
-  const [bankDetailsValid, setBankDetailsValid] = useState(null);
-
   // Session modal
   const [creatingSession, setCreatingSession] = useState(false);
   const [widgetUrl, setWidgetUrl] = useState(null);
@@ -61,23 +53,48 @@ export default function SellFlow() {
       : num.toLocaleString(undefined, { maximumFractionDigits: decimals });
   };
 
-  // Add this function in both BuyFlow and SellFlow
+  // Check if provider is direct integration
+  const isDirectProvider = (provider) => {
+    const providerName = (provider?.serviceProvider || provider?.provider || '').toUpperCase();
+    return providerName === 'ONRAMP' || providerName === 'MOONPAY';
+  };
+
+  // Fetch payment methods
   const fetchPaymentMethods = useCallback(async () => {
     if (!toCurrency || !fromCoin || !selectedProvider) return;
   
     setLoadingPaymentMethods(true);
     try {
-      const params = {
-        countries: toCurrency.slice(0, 2),
-        fiatCurrencies: toCurrency,
-        cryptoCurrencies: fromCoin,
-        statuses: 'LIVE',
-        serviceProviders: selectedProvider.serviceProvider || selectedProvider.provider,
-      };
+      const providerName = (selectedProvider.serviceProvider || selectedProvider.provider || '').toUpperCase();
       
-      const res = await apiClient.get("/meld/payment-methods/", { params });
-      const data = res.data?.data || res.data || [];
-      setPaymentMethods(Array.isArray(data) ? data : []);
+      if (providerName === 'ONRAMP') {
+        const methods = await onrampClient.getPaymentMethods({
+          country: toCurrency.slice(0, 2),
+          fiatCurrency: toCurrency,
+          cryptoCurrency: fromCoin,
+          type: 'sell',
+        });
+        setPaymentMethods(methods);
+      } else if (providerName === 'MOONPAY') {
+        const methods = await moonpayClient.getPaymentMethods({
+          country: toCurrency.slice(0, 2),
+          fiatCurrency: toCurrency,
+        });
+        setPaymentMethods(methods);
+      } else {
+        // Meld provider
+        const params = {
+          countries: toCurrency.slice(0, 2),
+          fiatCurrencies: toCurrency,
+          cryptoCurrencies: fromCoin,
+          statuses: 'LIVE',
+          serviceProviders: selectedProvider.serviceProvider || selectedProvider.provider,
+        };
+        
+        const res = await apiClient.get("/meld/payment-methods/", { params });
+        const data = res.data?.data || res.data || [];
+        setPaymentMethods(Array.isArray(data) ? data : []);
+      }
     } catch (err) {
       console.error("Payment methods error:", err);
       setPaymentMethods([]);
@@ -93,7 +110,7 @@ export default function SellFlow() {
     }
   }, [selectedProvider, fetchPaymentMethods]);
 
-  // Fetch quotes from all providers
+  // Fetch quotes from all providers (Meld + Direct)
   const fetchQuote = useCallback(async () => {
     setQuoteError(null);
     setCurrentQuote(null);
@@ -103,60 +120,86 @@ export default function SellFlow() {
 
       setLoadingQuote(true);
 
-      const payload = {
+      const quoteParams = {
+        sourceAmount: Number(cryptoAmount),
+        sourceCurrency: fromCoin,
+        destinationCurrency: toCurrency,
+        countryCode: toCurrency === "NGN" ? "NG" : toCurrency === "USD" ? "US" : toCurrency.slice(0, 2),
+      };
+
+      // Fetch from all sources in parallel
+      const quotePromises = [];
+
+      // 1. Meld providers
+      const meldPayload = {
         action: "SELL",
         sourceAmount: Number(cryptoAmount),
         sourceCurrencyCode: fromCoin,
         destinationCurrencyCode: toCurrency,
         countryCode: toCurrency === "NGN" ? "NG" : toCurrency === "USD" ? "US" : toCurrency.slice(0, 2),
       };
+      quotePromises.push(
+        apiClient.post("/meld/crypto-quote/", meldPayload)
+          .then(res => {
+            const data = res.data;
+            const inner = data?.data || data;
+            return inner?.quotes || (inner?.quote ? [inner.quote] : []);
+          })
+          .catch(err => {
+            console.error("Meld quote error:", err);
+            return [];
+          })
+      );
 
-      const res = await apiClient.post("/meld/crypto-quote/", payload);
-      const data = res.data;
-      const inner = data?.data || data;
+      // 2. OnRamp
+      quotePromises.push(
+        onrampClient.getSellQuote(quoteParams)
+          .then(quote => [quote])
+          .catch(err => {
+            console.error("OnRamp quote error:", err);
+            return [];
+          })
+      );
 
-      const quotes = inner?.quotes || (inner?.quote ? [inner.quote] : []);
+      // 3. MoonPay
+      quotePromises.push(
+        moonpayClient.getSellQuote(quoteParams)
+          .then(quote => [quote])
+          .catch(err => {
+            console.error("MoonPay quote error:", err);
+            return [];
+          })
+      );
 
-      if (quotes.length === 0) {
+      const results = await Promise.all(quotePromises);
+      const allQuotes = results.flat();
+
+      if (allQuotes.length === 0) {
         setQuoteError("No providers available for this transaction");
         setAvailableProviders([]);
         setSelectedProvider(null);
         return;
       }
 
-      setAvailableProviders(quotes);
+      setAvailableProviders(allQuotes);
 
       // If no provider selected yet, select the first one
       if (!selectedProvider) {
-        setSelectedProvider(quotes[0]);
+        setSelectedProvider(allQuotes[0]);
       } else {
         // Keep the same provider if it still exists in new quotes
-        const stillExists = quotes.find(
+        const stillExists = allQuotes.find(
           q => (q.serviceProvider || q.provider) === (selectedProvider.serviceProvider || selectedProvider.provider)
         );
         if (stillExists) {
           setSelectedProvider(stillExists);
         } else {
-          setSelectedProvider(quotes[0]);
+          setSelectedProvider(allQuotes[0]);
         }
       }
     } catch (err) {
       console.error("Quote error:", err);
-      const resp = err?.response?.data;
-      
-      if (resp) {
-        const fallbackMessage = resp.message || resp.error || "Unable to fetch quote";
-        const maybeMin = resp.minimumAmount ?? resp.minAmount ?? resp.min_source_amount ?? null;
-
-        if (maybeMin) {
-          setQuoteError(`Amount is below minimum: ${formatNumber(maybeMin)} ${fromCoin}`);
-        } else {
-          setQuoteError(fallbackMessage);
-        }
-      } else {
-        setQuoteError("Network error while fetching quote.");
-      }
-      
+      setQuoteError("Unable to fetch quotes. Please try again.");
       setAvailableProviders([]);
       setSelectedProvider(null);
     } finally {
@@ -188,41 +231,6 @@ export default function SellFlow() {
 
   useDebounce(fetchQuote, 600, [cryptoAmount, fromCoin, toCurrency]);
 
-  // Validate bank details
-  const validateBankDetailsFunc = async () => {
-    const { accountNumber, accountName, bankName } = bankDetails;
-    
-    if (!accountNumber.trim() || !accountName.trim() || !bankName.trim()) {
-      setBankDetailsValid(false);
-      setBankValidationError(null);
-      return;
-    }
-  
-    setValidatingBankDetails(true);
-    try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const result = validateBankDetails(bankDetails, toCurrency);
-      setBankDetailsValid(result.isValid);
-      setBankValidationError(result.isValid ? null : result.error);
-    } catch (err) {
-      setBankDetailsValid(false);
-      setBankValidationError("Validation error occurred");
-    } finally {
-      setValidatingBankDetails(false);
-    }
-  };
-
-  useEffect(() => {
-    if (bankDetails.accountNumber || bankDetails.accountName || bankDetails.bankName) {
-      const timer = setTimeout(validateBankDetailsFunc, 800);
-      return () => clearTimeout(timer);
-    } else {
-      setBankDetailsValid(null);
-      setBankValidationError(null);
-    }
-  }, [bankDetails, toCurrency]);
-
   const goToStep2 = () => {
     if (!cryptoAmount || Number(cryptoAmount) <= 0 || quoteError || !selectedProvider) return;
     setCurrentStep(2);
@@ -233,42 +241,88 @@ export default function SellFlow() {
   };
 
   const handleProceedToCheckout = async () => {
-    if (!selectedProvider || !bankDetailsValid) return;
-
+    if (!selectedProvider) return;
+  
     setCreatingSession(true);
-    try {
-      const user = JSON.parse(localStorage.getItem("bitexly_user") || "{}");
+    try {  
+      // Get user from localStorage (matches your AuthContext structure)
+      const storedUser = localStorage.getItem("bitexly_user");
       
-      const payload = {
-        sessionData: {
-          countryCode: toCurrency === "NGN" ? "NG" : toCurrency === "USD" ? "US" : toCurrency.slice(0, 2),
-          sourceCurrencyCode: fromCoin,
+      if (!storedUser) {
+        alert("User session not found. Please log in again.");
+        return;
+      }
+  
+      const userData = JSON.parse(storedUser);
+      const user_details = userData.user_details || {};
+      
+      // Extract customerId - your user object has the data directly
+      const customerId = user_details.id || user_details.email || user_details.username;
+  
+      if (!customerId) {
+        console.error("User data:", userData);
+        alert("Unable to identify user. Please log in again.");
+        return;
+      }
+  
+      console.log("✅ User identified:", customerId);
+
+      const providerName = (selectedProvider.serviceProvider || selectedProvider.provider || '').toUpperCase();
+      let url;
+  
+      if (providerName === 'ONRAMP') {
+        url = await onrampClient.generateSellUrl({
+          sourceCurrency: fromCoin,
+          destinationCurrency: toCurrency,
           sourceAmount: Number(cryptoAmount),
-          destinationCurrencyCode: toCurrency,
-          serviceProvider: selectedProvider.serviceProvider || selectedProvider.provider,
-          paymentMethod: selectedPaymentMethod?.type || selectedPaymentMethod?.id,
-          // Include bank details if needed by the API
-          bankDetails: {
-            accountNumber: bankDetails.accountNumber,
-            accountName: bankDetails.accountName,
-            bankName: bankDetails.bankName,
-            routingNumber: bankDetails.routingNumber || undefined,
+        });
+  
+      } else if (providerName === 'MOONPAY') {
+        url = await moonpayClient.generateSellUrl({
+          sourceCurrency: fromCoin,
+          destinationCurrency: toCurrency,
+          sourceAmount: Number(cryptoAmount),
+          bankDetails,
+        });
+  
+      } else {
+        // Meld provider
+        const payload = {
+          sessionData: {
+            countryCode: toCurrency === "NGN" ? "NG" : toCurrency === "USD" ? "US" : toCurrency.slice(0, 2),
+            sourceCurrencyCode: fromCoin,
+            sourceAmount: Number(cryptoAmount),
+            destinationCurrencyCode: toCurrency,
+            serviceProvider: selectedProvider.serviceProvider || selectedProvider.provider,
+            paymentMethod: selectedPaymentMethod?.type || selectedPaymentMethod?.id,
           },
-        },
-        sessionType: "SELL",
-        externalCustomerId: user.id || user.email,
-      };
-
-      const res = await apiClient.post("/meld/session-widget/", payload);
-      const data = res.data;
-      const url = data.widgetUrl || data.data?.widgetUrl;
-
+          sessionType: "SELL",
+          externalCustomerId: customerId,
+        };
+  
+        console.log('Meld Sell Request:', payload);
+  
+        const res = await apiClient.post("/meld/session-widget/", payload);
+        const data = res.data;
+        url = data.widgetUrl || data.data?.widgetUrl;
+      }
+  
       if (!url) throw new Error("No widget URL returned");
       
+      console.log("✅ Widget URL generated:", url);
       setWidgetUrl(url);
+  
     } catch (err) {
-      console.error("Session creation error:", err);
-      alert("Unable to start sell session. Please try again.");
+      console.error("❌ Session creation error:", err);
+      console.error("Error response:", err.response?.data);
+      
+      const errorMsg = err.response?.data?.message 
+        || err.response?.data?.error
+        || err.response?.data?.details
+        || err.message 
+        || "Unable to start sell session. Please try again.";
+      
+      alert(errorMsg);
     } finally {
       setCreatingSession(false);
     }
@@ -311,28 +365,6 @@ export default function SellFlow() {
               />
               <CoinSelect value={fromCoin} onChange={setFromCoin} />
             </div>
-          </div>
-
-          {/* Provider Selection Dropdown */}
-          <div className="relative z-[10000]">
-            <ProviderSelect
-              availableProviders={availableProviders}
-              selectedProvider={selectedProvider}
-              setSelectedProvider={setSelectedProvider}
-              loadingQuote={loadingQuote}
-            />
-          </div>
-
-          {/* Payment Method Selection */}
-          <div className="relative z-[9999]">
-            <PaymentMethodSelect
-                availableMethods={paymentMethods}
-                selectedMethod={selectedPaymentMethod}
-                setSelectedMethod={setSelectedPaymentMethod}
-                loadingMethods={loadingPaymentMethods}
-                currency={toCurrency}
-                action="SELL"
-            />
           </div>
 
           {/* Swap Icon */}
@@ -384,9 +416,31 @@ export default function SellFlow() {
             )}
           </div>
 
+          {/* Provider Selection Dropdown */}
+          <div className="relative z-[8]">
+            <ProviderSelect
+              availableProviders={availableProviders}
+              selectedProvider={selectedProvider}
+              setSelectedProvider={setSelectedProvider}
+              loadingQuote={loadingQuote}
+            />
+          </div>
+
+          {/* Payment Method Selection */}
+          <div className="relative z-[4]">
+            <PaymentMethodSelect
+                availableMethods={paymentMethods}
+                selectedMethod={selectedPaymentMethod}
+                setSelectedMethod={setSelectedPaymentMethod}
+                loadingMethods={loadingPaymentMethods}
+                currency={toCurrency}
+                action="SELL"
+            />
+          </div>
+
           <button
             onClick={goToStep2}
-            disabled={!cryptoAmount || Number(cryptoAmount) <= 0 || quoteError || loadingQuote || !selectedProvider || !selectedPaymentMethod}
+            disabled={!cryptoAmount || Number(cryptoAmount) <= 0 || quoteError || loadingQuote || !selectedProvider}
             className={`w-full py-3 text-white font-semibold rounded-2xl transition-colors duration-200 ${
               cryptoAmount && Number(cryptoAmount) > 0 && !quoteError && !loadingQuote && selectedProvider
                 ? "bg-indigo-600 hover:bg-indigo-700"
@@ -398,7 +452,7 @@ export default function SellFlow() {
         </div>
       )}
 
-      {/* STEP 2: Bank Details */}
+      {/* STEP 2: Transaction Summary */}
       {currentStep === 2 && (
         <div className="space-y-6">
           <button onClick={goBack} className="flex items-center text-sm text-gray-400 hover:text-white transition">
@@ -406,98 +460,88 @@ export default function SellFlow() {
           </button>
 
           <div className="text-center">
-            <h3 className="text-xl font-bold text-white mb-2">Enter Bank Details</h3>
-            <p className="text-sm text-gray-400">Where should we send your {toCurrency}?</p>
+            <h3 className="text-xl font-bold text-white mb-2">Confirm Your Sale</h3>
+            <p className="text-sm text-gray-400">Review the details before proceeding</p>
           </div>
 
-          <div className="space-y-4">
-            {/* Account Number */}
-            <div className="border border-white/10 bg-gray-800/40 rounded-2xl p-4">
-              <label className="text-xs text-gray-400 block mb-2">Account Number</label>
-              <input
-                type="text"
-                value={bankDetails.accountNumber}
-                onChange={(e) => setBankDetails({ ...bankDetails, accountNumber: e.target.value })}
-                placeholder="Enter your account number"
-                className="w-full bg-transparent outline-none text-white text-sm"
-              />
-            </div>
-
-            {/* Account Name */}
-            <div className="border border-white/10 bg-gray-800/40 rounded-2xl p-4">
-              <label className="text-xs text-gray-400 block mb-2">Account Name</label>
-              <input
-                type="text"
-                value={bankDetails.accountName}
-                onChange={(e) => setBankDetails({ ...bankDetails, accountName: e.target.value })}
-                placeholder="Enter account holder name"
-                className="w-full bg-transparent outline-none text-white text-sm"
-              />
-            </div>
-
-            {/* Bank Name */}
-            <div className="border border-white/10 bg-gray-800/40 rounded-2xl p-4">
-              <label className="text-xs text-gray-400 block mb-2">Bank Name</label>
-              <input
-                type="text"
-                value={bankDetails.bankName}
-                onChange={(e) => setBankDetails({ ...bankDetails, bankName: e.target.value })}
-                placeholder="Enter your bank name"
-                className="w-full bg-transparent outline-none text-white text-sm"
-              />
-            </div>
-
-            {/* Routing Number (Optional for international) */}
-            {toCurrency !== "NGN" && (
-              <div className="border border-white/10 bg-gray-800/40 rounded-2xl p-4">
-                <label className="text-xs text-gray-400 block mb-2">
-                    {toCurrency === "USD" ? "Routing Number (Optional)" : 
-                    toCurrency === "GBP" ? "Sort Code (Optional)" : 
-                    toCurrency === "EUR" ? "BIC/SWIFT (Optional)" : 
-                    "Routing Number (Optional)"}
-                </label>
-                <input
-                  type="text"
-                  value={bankDetails.routingNumber}
-                  onChange={(e) => setBankDetails({ ...bankDetails, routingNumber: e.target.value })}
-                  placeholder="Enter routing number if applicable"
-                  className="w-full bg-transparent outline-none text-white text-sm"
-                />
+          <div className="bg-gray-800/60 rounded-xl p-5 space-y-4">
+            {/* Transaction visual */}
+            <div className="flex items-center justify-between pb-4 border-b border-white/10">
+              <div className="text-center flex-1">
+                <p className="text-xs text-gray-400 mb-1">You Sell</p>
+                <p className="text-2xl font-bold text-white">{formatNumber(Number(cryptoAmount), 8)}</p>
+                <p className="text-sm text-gray-400">{fromCoin}</p>
               </div>
-            )}
-
-            {/* Validation Status */}
-            {validatingBankDetails && (
-              <div className="flex items-center gap-2 text-xs text-gray-400">
-                <Loader2 className="w-3 h-3 animate-spin" /> Validating...
+              <ArrowDownUp className="w-6 h-6 text-indigo-400 mx-4" />
+              <div className="text-center flex-1">
+                <p className="text-xs text-gray-400 mb-1">You Receive</p>
+                <p className="text-2xl font-bold text-white">{formatNumber(Number(fiatAmount), 2)}</p>
+                <p className="text-sm text-gray-400">{toCurrency}</p>
               </div>
-            )}
-
-            {!validatingBankDetails && bankDetailsValid === true && (
-              <div className="flex items-center gap-2 text-xs text-green-400">
-                <Check className="w-3 h-3" /> Bank details verified
-              </div>
-            )}
-
-            {!validatingBankDetails && bankDetailsValid === false && (bankDetails.accountNumber || bankDetails.accountName || bankDetails.bankName) && (
-            <div className="flex items-start gap-2 text-xs text-red-400 bg-red-500/10 p-2 rounded">
-                <AlertCircle className="w-3 h-3 flex-shrink-0 mt-0.5" />
-                <span>{bankValidationError || "Please check your bank details"}</span>
             </div>
-            )}
 
-            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3">
-              <p className="text-xs text-yellow-200">⚠️ Ensure your bank details are correct. Incorrect details may result in payment delays.</p>
+            {/* Transaction details */}
+            <div className="space-y-2 text-sm">
+              {currentQuote?.rate && (
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Exchange Rate</span>
+                  <span className="text-white">1 {fromCoin} ≈ {formatNumber(Number(currentQuote.rate), 2)} {toCurrency}</span>
+                </div>
+              )}
+              
+              {currentQuote?.fees?.total && (
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Total Fees</span>
+                  <span className="text-white">{formatNumber(Number(currentQuote.fees.total), 2)} {toCurrency}</span>
+                </div>
+              )}
+
+              {selectedProvider && (
+                <div className="flex justify-between items-center pt-2 border-t border-white/10">
+                  <span className="text-gray-400">Provider</span>
+                  <div className="flex items-center gap-2">
+                    {currentQuote?.logo && (
+                      <img src={currentQuote.logo} alt="provider" className="w-5 h-5 rounded" />
+                    )}
+                    <span className="text-white font-medium">
+                      {currentQuote?.provider || selectedProvider.serviceProvider || selectedProvider.provider}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {selectedPaymentMethod && (
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Payment Method</span>
+                  <span className="text-white capitalize">
+                    {selectedPaymentMethod.name || selectedPaymentMethod.type || 'Selected'}
+                  </span>
+                </div>
+              )}
             </div>
+          </div>
+
+          {/* Info box */}
+          <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
+            <p className="text-xs text-blue-200">
+              💡 After confirming, you'll be directed to complete your bank details and payment information securely with our payment partner.
+            </p>
+          </div>
+
+          {/* Warning box */}
+          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3">
+            <p className="text-xs text-yellow-200">
+              ⚠️ Make sure you have {formatNumber(Number(cryptoAmount), 8)} {fromCoin} ready to send when prompted by the widget.
+            </p>
           </div>
 
           <button
             onClick={handleProceedToCheckout}
-            disabled={!bankDetailsValid || creatingSession}
+            disabled={creatingSession}
             className={`w-full py-3 text-white font-semibold rounded-2xl transition-all shadow-lg ${
-              bankDetailsValid && !creatingSession
-                ? "bg-indigo-600 hover:bg-indigo-700"
-                : "bg-gray-700 cursor-not-allowed opacity-60"
+              creatingSession
+                ? "bg-gray-700 cursor-not-allowed opacity-60"
+                : "bg-indigo-600 hover:bg-indigo-700"
             }`}
           >
             {creatingSession ? (
@@ -505,7 +549,7 @@ export default function SellFlow() {
                 <Loader2 className="w-4 h-4 animate-spin" /> Processing...
               </span>
             ) : (
-              `Sell ${formatNumber(Number(cryptoAmount), 8)} ${fromCoin}`
+              "Confirm & Proceed to Payment"
             )}
           </button>
         </div>

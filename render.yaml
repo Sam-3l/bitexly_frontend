@@ -1,8 +1,0 @@
-staticSites:
-  - name: bitexly
-    buildCommand: npm run build
-    publishDir: dist
-    redirects:
-      - source: /*
-        destination: /index.html
-        status: 200

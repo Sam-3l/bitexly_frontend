@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { ArrowDownUp, Loader2, X, ChevronLeft, Check, AlertCircle } from "lucide-react";
 import { validateWalletAddress } from "../../utils/walletValidator";
+import { onrampClient } from "../../utils/onrampClient";
+import { moonpayClient } from "../../utils/moonpayClient";
 import CoinSelect from "./CoinSelect";
 import CurrencySelect from "./CurrencySelect";
 import apiClient from "../../utils/apiClient";
@@ -54,23 +56,48 @@ export default function BuyFlow() {
       : num.toLocaleString(undefined, { maximumFractionDigits: decimals });
   };
 
+  // Check if provider is direct integration
+  const isDirectProvider = (provider) => {
+    const providerName = (provider?.serviceProvider || provider?.provider || '').toUpperCase();
+    return providerName === 'ONRAMP' || providerName === 'MOONPAY';
+  };
+
   // Fetch payment methods based on selected provider
   const fetchPaymentMethods = useCallback(async () => {
     if (!toCurrency || !fromCoin || !selectedProvider) return;
   
     setLoadingPaymentMethods(true);
     try {
-      const params = {
-        countries: toCurrency.slice(0, 2),
-        fiatCurrencies: toCurrency,
-        cryptoCurrencies: fromCoin,
-        statuses: 'LIVE',
-        serviceProviders: selectedProvider.serviceProvider || selectedProvider.provider,
-      };
+      const providerName = (selectedProvider.serviceProvider || selectedProvider.provider || '').toUpperCase();
       
-      const res = await apiClient.get("/meld/payment-methods/", { params });
-      const data = res.data?.data || res.data || [];
-      setPaymentMethods(Array.isArray(data) ? data : []);
+      if (providerName === 'ONRAMP') {
+        const methods = await onrampClient.getPaymentMethods({
+          country: toCurrency.slice(0, 2),
+          fiatCurrency: toCurrency,
+          cryptoCurrency: fromCoin,
+          type: 'buy',
+        });
+        setPaymentMethods(methods);
+      } else if (providerName === 'MOONPAY') {
+        const methods = await moonpayClient.getPaymentMethods({
+          country: toCurrency.slice(0, 2),
+          fiatCurrency: toCurrency,
+        });
+        setPaymentMethods(methods);
+      } else {
+        // Meld provider
+        const params = {
+          countries: toCurrency.slice(0, 2),
+          fiatCurrencies: toCurrency,
+          cryptoCurrencies: fromCoin,
+          statuses: 'LIVE',
+          serviceProviders: selectedProvider.serviceProvider || selectedProvider.provider,
+        };
+        
+        const res = await apiClient.get("/meld/payment-methods/", { params });
+        const data = res.data?.data || res.data || [];
+        setPaymentMethods(Array.isArray(data) ? data : []);
+      }
     } catch (err) {
       console.error("Payment methods error:", err);
       setPaymentMethods([]);
@@ -86,7 +113,7 @@ export default function BuyFlow() {
     }
   }, [selectedProvider, fetchPaymentMethods]);
 
-  // Fetch quotes from all providers
+  // Fetch quotes from all providers (Meld + Direct)
   const fetchQuote = useCallback(async () => {
     setQuoteError(null);
     setCurrentQuote(null);
@@ -96,60 +123,86 @@ export default function BuyFlow() {
 
       setLoadingQuote(true);
 
-      const payload = {
+      const quoteParams = {
+        sourceAmount: Number(fiatAmount),
+        sourceCurrency: toCurrency,
+        destinationCurrency: fromCoin,
+        countryCode: toCurrency.slice(0, 2),
+      };
+
+      // Fetch from all sources in parallel
+      const quotePromises = [];
+
+      // 1. Meld providers
+      const meldPayload = {
         action: "BUY",
         sourceAmount: Number(fiatAmount),
         sourceCurrencyCode: toCurrency,
         destinationCurrencyCode: fromCoin,
         countryCode: toCurrency.slice(0, 2),
       };
+      quotePromises.push(
+        apiClient.post("/meld/crypto-quote/", meldPayload)
+          .then(res => {
+            const data = res.data;
+            const inner = data?.data || data;
+            return inner?.quotes || (inner?.quote ? [inner.quote] : []);
+          })
+          .catch(err => {
+            console.error("Meld quote error:", err);
+            return [];
+          })
+      );
 
-      const res = await apiClient.post("/meld/crypto-quote/", payload);
-      const data = res.data;
-      const inner = data?.data || data;
+      // 2. OnRamp
+      quotePromises.push(
+        onrampClient.getBuyQuote(quoteParams)
+          .then(quote => [quote])
+          .catch(err => {
+            console.error("OnRamp quote error:", err);
+            return [];
+          })
+      );
 
-      const quotes = inner?.quotes || (inner?.quote ? [inner.quote] : []);
+      // 3. MoonPay
+      quotePromises.push(
+        moonpayClient.getBuyQuote(quoteParams)
+          .then(quote => [quote])
+          .catch(err => {
+            console.error("MoonPay quote error:", err);
+            return [];
+          })
+      );
 
-      if (quotes.length === 0) {
+      const results = await Promise.all(quotePromises);
+      const allQuotes = results.flat();
+
+      if (allQuotes.length === 0) {
         setQuoteError("No providers available for this transaction");
         setAvailableProviders([]);
         setSelectedProvider(null);
         return;
       }
 
-      setAvailableProviders(quotes);
+      setAvailableProviders(allQuotes);
 
       // If no provider selected yet, select the first one
       if (!selectedProvider) {
-        setSelectedProvider(quotes[0]);
+        setSelectedProvider(allQuotes[0]);
       } else {
         // Keep the same provider if it still exists in new quotes
-        const stillExists = quotes.find(
+        const stillExists = allQuotes.find(
           q => (q.serviceProvider || q.provider) === (selectedProvider.serviceProvider || selectedProvider.provider)
         );
         if (stillExists) {
           setSelectedProvider(stillExists);
         } else {
-          setSelectedProvider(quotes[0]);
+          setSelectedProvider(allQuotes[0]);
         }
       }
     } catch (err) {
       console.error("Quote error:", err);
-      const resp = err?.response?.data;
-      
-      if (resp) {
-        const fallbackMessage = resp.message || resp.error || "Unable to fetch quote";
-        const maybeMin = resp.minimumAmount ?? resp.minAmount ?? resp.min_source_amount ?? null;
-
-        if (maybeMin) {
-          setQuoteError(`Amount is below minimum: ${formatNumber(maybeMin)} ${toCurrency}`);
-        } else {
-          setQuoteError(fallbackMessage);
-        }
-      } else {
-        setQuoteError("Network error while fetching quote.");
-      }
-      
+      setQuoteError("Unable to fetch quotes. Please try again.");
       setAvailableProviders([]);
       setSelectedProvider(null);
     } finally {
@@ -160,23 +213,23 @@ export default function BuyFlow() {
 
   // Update cryptoAmount whenever fiatAmount or selectedProvider changes
   useEffect(() => {
-        if (selectedProvider && fiatAmount && Number(fiatAmount) > 0) {
-        const destAmount = selectedProvider.destinationAmount ?? selectedProvider.destinationAmountWithoutFees ?? null;
-        if (destAmount !== null) {
-            setCryptoAmount(String(destAmount));
-        }
-        setCurrentQuote({
-            rate: selectedProvider.exchangeRate ?? selectedProvider.rate ?? null,
-            fees: {
-            total: selectedProvider.totalFee ?? selectedProvider.total_fees ?? null,
-            transaction: selectedProvider.transactionFee ?? null,
-            network: selectedProvider.networkFee ?? null,
-            },
-            provider: selectedProvider.serviceProvider ?? selectedProvider.provider ?? null,
-            minAmount: selectedProvider.minimumAmount ?? selectedProvider.minAmount ?? null,
-            logo: selectedProvider.logoUrl ?? selectedProvider.logo ?? null, // if API returns logos
-        });
-        }
+    if (selectedProvider && fiatAmount && Number(fiatAmount) > 0) {
+      const destAmount = selectedProvider.destinationAmount ?? selectedProvider.destinationAmountWithoutFees ?? null;
+      if (destAmount !== null) {
+        setCryptoAmount(String(destAmount));
+      }
+      setCurrentQuote({
+        rate: selectedProvider.exchangeRate ?? selectedProvider.rate ?? null,
+        fees: {
+          total: selectedProvider.totalFee ?? selectedProvider.total_fees ?? null,
+          transaction: selectedProvider.transactionFee ?? null,
+          network: selectedProvider.networkFee ?? null,
+        },
+        provider: selectedProvider.serviceProvider ?? selectedProvider.provider ?? null,
+        minAmount: selectedProvider.minimumAmount ?? selectedProvider.minAmount ?? null,
+        logo: selectedProvider.logoUrl ?? selectedProvider.logo ?? null,
+      });
+    }
   }, [selectedProvider, fiatAmount]);
 
   useDebounce(fetchQuote, 600, [fiatAmount, fromCoin, toCurrency]);
@@ -208,7 +261,15 @@ export default function BuyFlow() {
 
   const goToStep2 = () => {
     if (!fiatAmount || Number(fiatAmount) <= 0 || quoteError || !selectedProvider) return;
-    setCurrentStep(2);
+    
+    const providerName = (selectedProvider.serviceProvider || selectedProvider.provider || '').toUpperCase();
+    
+    // Skip wallet address step for OnRamp since their widget collects it
+    if (providerName === 'ONRAMP') {
+      handleProceedToCheckout();
+    } else {
+      setCurrentStep(2);
+    }
   };
 
   const goBack = () => {
@@ -216,36 +277,96 @@ export default function BuyFlow() {
   };
 
   const handleProceedToCheckout = async () => {
-    if (!selectedProvider || !walletAddress || !addressValid) return;
-
+    const providerName = (selectedProvider?.serviceProvider || selectedProvider?.provider || '').toUpperCase();
+    
+    // OnRamp doesn't need wallet validation since their widget collects it
+    if (providerName !== 'ONRAMP' && (!walletAddress || !addressValid)) {
+      return;
+    }
+    
+    if (!selectedProvider) return;
+    
     setCreatingSession(true);
     try {
-      const user = JSON.parse(localStorage.getItem("bitexly_user") || "{}");
+      // Get user from localStorage (matches your AuthContext structure)
+      const storedUser = localStorage.getItem("bitexly_user");
       
-      const payload = {
-        sessionData: {
-          walletAddress: walletAddress,
-          countryCode: toCurrency.slice(0, 2),
-          sourceCurrencyCode: toCurrency,
+      if (!storedUser) {
+        alert("User session not found. Please log in again.");
+        return;
+      }
+  
+      const userData = JSON.parse(storedUser);
+      const user_details = userData.user_details || {};
+      
+      // Extract customerId - your user object has the data directly
+      const customerId = user_details.id || user_details.email || user_details.username;
+  
+      if (!customerId) {
+        console.error("User data:", userData);
+        alert("Unable to identify user. Please log in again.");
+        return;
+      }
+  
+      console.log("✅ User identified:", customerId);
+
+      const providerName = (selectedProvider.serviceProvider || selectedProvider.provider || '').toUpperCase();
+      let url;
+  
+      if (providerName === 'ONRAMP') {
+        url = await onrampClient.generateBuyUrl({
+          sourceCurrency: toCurrency,
+          destinationCurrency: fromCoin,
           sourceAmount: Number(fiatAmount),
-          destinationCurrencyCode: fromCoin,
-          serviceProvider: selectedProvider.serviceProvider || selectedProvider.provider,
-          paymentMethod: selectedPaymentMethod?.type || selectedPaymentMethod?.id,
-        },
-        sessionType: "BUY",
-        externalCustomerId: user.id || user.email,
-      };
-
-      const res = await apiClient.post("/meld/session-widget/", payload);
-      const data = res.data;
-      const url = data.widgetUrl || data.data?.widgetUrl;
-
+        });
+  
+      } else if (providerName === 'MOONPAY') {
+        url = await moonpayClient.generateBuyUrl({
+          walletAddress,
+          sourceCurrency: toCurrency,
+          destinationCurrency: fromCoin,
+          sourceAmount: Number(fiatAmount),
+        });
+  
+      } else {
+        // Meld provider
+        const payload = {
+          sessionData: {
+            walletAddress: walletAddress,
+            countryCode: toCurrency.slice(0, 2),
+            sourceCurrencyCode: toCurrency,
+            sourceAmount: Number(fiatAmount),
+            destinationCurrencyCode: fromCoin,
+            serviceProvider: selectedProvider.serviceProvider || selectedProvider.provider,
+            paymentMethod: selectedPaymentMethod?.type || selectedPaymentMethod?.id,
+          },
+          sessionType: "BUY",
+          externalCustomerId: customerId,
+        };
+  
+        console.log('Meld Buy Request:', payload);
+  
+        const res = await apiClient.post("/meld/session-widget/", payload);
+        const data = res.data;
+        url = data.widgetUrl || data.data?.widgetUrl;
+      }
+  
       if (!url) throw new Error("No widget URL returned");
       
+      console.log("✅ Widget URL generated:", url);
       setWidgetUrl(url);
+  
     } catch (err) {
-      console.error("Session creation error:", err);
-      alert("Unable to start buy session. Please try again.");
+      console.error("❌ Session creation error:", err);
+      console.error("Error response:", err.response?.data);
+      
+      const errorMsg = err.response?.data?.message 
+        || err.response?.data?.error
+        || err.response?.data?.details
+        || err.message 
+        || "Unable to start buy session. Please try again.";
+      
+      alert(errorMsg);
     } finally {
       setCreatingSession(false);
     }
@@ -288,28 +409,6 @@ export default function BuyFlow() {
               />
               <CurrencySelect value={toCurrency} onChange={setToCurrency} />
             </div>
-          </div>
-
-          {/* Provider Selection Dropdown */}
-          <div className="relative z-30">
-            <ProviderSelect
-                availableProviders={availableProviders}
-                selectedProvider={selectedProvider}
-                setSelectedProvider={setSelectedProvider}
-                loadingQuote={loadingQuote}
-            />
-          </div>
-
-          {/* Payment Method Selection */}
-          <div className="relative z-20">
-            <PaymentMethodSelect
-                availableMethods={paymentMethods}
-                selectedMethod={selectedPaymentMethod}
-                setSelectedMethod={setSelectedPaymentMethod}
-                loadingMethods={loadingPaymentMethods}
-                currency={toCurrency}
-                action="BUY"
-            />
           </div>
 
           {/* Swap Icon */}
@@ -361,9 +460,31 @@ export default function BuyFlow() {
             )}
           </div>
 
+          {/* Provider Selection Dropdown */}
+          <div className="relative z-[8]">
+            <ProviderSelect
+                availableProviders={availableProviders}
+                selectedProvider={selectedProvider}
+                setSelectedProvider={setSelectedProvider}
+                loadingQuote={loadingQuote}
+            />
+          </div>
+
+          {/* Payment Method Selection */}
+          <div className="relative z-[4]">
+            <PaymentMethodSelect
+                availableMethods={paymentMethods}
+                selectedMethod={selectedPaymentMethod}
+                setSelectedMethod={setSelectedPaymentMethod}
+                loadingMethods={loadingPaymentMethods}
+                currency={toCurrency}
+                action="BUY"
+            />
+          </div>
+
           <button
             onClick={goToStep2}
-            disabled={!fiatAmount || Number(fiatAmount) <= 0 || quoteError || loadingQuote || !selectedProvider || !selectedPaymentMethod}
+            disabled={!fiatAmount || Number(fiatAmount) <= 0 || quoteError || loadingQuote || !selectedProvider}
             className={`w-full py-3 text-white font-semibold rounded-2xl transition-colors duration-200 ${
                 fiatAmount && Number(fiatAmount) > 0 && !quoteError && !loadingQuote && selectedProvider
                   ? "bg-indigo-600 hover:bg-indigo-700"

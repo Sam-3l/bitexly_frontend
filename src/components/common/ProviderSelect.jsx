@@ -83,11 +83,7 @@ export default function ProviderSelect({
       <AnimatePresence>
         {open && (
           <motion.div
-            className="absolute top-full left-0 mt-2 rounded-xl shadow-2xl bg-[#0b0b0b] border border-white/10 overflow-hidden min-w-[14rem] w-auto z-50"
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.15 }}
+            className="absolute top-full left-0 mt-2 rounded-xl shadow-xl bg-gray-900/85 backdrop-blur-md border border-white/10 overflow-hidden min-w-[14rem] w-auto"
           >                        
             {availableProviders.length === 0 ? (
               <p className="p-3 text-sm text-gray-400">No providers available</p>
