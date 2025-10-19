@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { ArrowDownUp, Loader2, X, ChevronLeft, Check, AlertCircle } from "lucide-react";
-import { validateBankDetails } from "../../utils/bankValidator";
 import { onrampClient } from "../../utils/onrampClient";
 import { moonpayClient } from "../../utils/moonpayClient";
 import CoinSelect from "./CoinSelect";
@@ -282,7 +281,6 @@ export default function SellFlow() {
           sourceCurrency: fromCoin,
           destinationCurrency: toCurrency,
           sourceAmount: Number(cryptoAmount),
-          bankDetails,
         });
   
       } else {
