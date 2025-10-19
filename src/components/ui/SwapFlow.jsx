@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { ArrowDownUp, Loader2, ChevronLeft, Check, AlertCircle, RefreshCw } from "lucide-react";
+import { ArrowDownUp, Loader2, ChevronLeft, Check, AlertCircle, RefreshCw, Clock, Copy } from "lucide-react";
 import { validateWalletAddress } from "../../utils/walletValidator";
 import CoinSelect from "./CoinSelect";
 import apiClient from "../../utils/apiClient";
@@ -36,10 +36,17 @@ export default function SwapFlow() {
   const [addressValid, setAddressValid] = useState(null);
   const [addressError, setAddressError] = useState(null);
 
-  // Step 3: Confirm & Execute
+  // Step 3: Create & Await Payment
   const [creatingTransaction, setCreatingTransaction] = useState(false);
   const [transactionResult, setTransactionResult] = useState(null);
   const [transactionError, setTransactionError] = useState(null);
+  const [copiedAddress, setCopiedAddress] = useState(false);
+
+  // Step 4: Confirm Transaction
+  const [confirmingTransaction, setConfirmingTransaction] = useState(false);
+  const [transactionStatus, setTransactionStatus] = useState(null);
+  const [statusError, setStatusError] = useState(null);
+  const [pollingInterval, setPollingInterval] = useState(null);
 
   const formatNumber = (n, decimals = 8) => {
     if (n === null || n === undefined || Number.isNaN(Number(n))) return "";
@@ -49,6 +56,13 @@ export default function SwapFlow() {
       : num.toLocaleString(undefined, { maximumFractionDigits: decimals });
   };
 
+  // Copy to clipboard
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    setCopiedAddress(true);
+    setTimeout(() => setCopiedAddress(false), 2000);
+  };
+
   // Fetch Changelly coins
   useEffect(() => {
     const fetchChangellyCoins = async () => {
@@ -56,7 +70,6 @@ export default function SwapFlow() {
         const res = await apiClient.get("/users/api/changelly/get-coins/");
         const coinsList = res.data?.result || [];
         
-        // Format coins to match CoinSelect component structure
         const formatted = coinsList.map(c => ({
           id: c.ticker?.toUpperCase() || c.name?.toUpperCase(),
           name: c.fullName || c.name,
@@ -103,13 +116,11 @@ export default function SwapFlow() {
         throw new Error("Invalid response from server");
       }
 
-      // Handle nested result structure: result: [{...}]
       let quoteData = result;
       if (Array.isArray(result) && result.length > 0) {
         quoteData = result[0];
       }
 
-      // Extract the relevant data
       const estimatedAmount = quoteData.amountTo || quoteData.result || quoteData.estimatedAmount;
       
       if (!estimatedAmount) {
@@ -119,7 +130,6 @@ export default function SwapFlow() {
       setToAmount(String(estimatedAmount));
       setCurrentQuote(quoteData);
       
-      // Calculate rate and extract fees
       const rate = Number(estimatedAmount) / Number(fromAmount);
       setRateInfo({
         rate: rate,
@@ -165,7 +175,6 @@ export default function SwapFlow() {
     setAddressError(null);
 
     try {
-      // Use local validation first
       const isValidLocally = validateWalletAddress(walletAddress, toCoin);
       
       if (!isValidLocally) {
@@ -175,7 +184,6 @@ export default function SwapFlow() {
         return;
       }
 
-      // Then verify with backend
       const res = await apiClient.post("/users/api/changelly/validate-wallet/", {
         currency: toCoin.toLowerCase(),
         wallet_address: walletAddress,
@@ -227,6 +235,14 @@ export default function SwapFlow() {
         setTransactionResult(null);
         setTransactionError(null);
       }
+      if (currentStep === 4) {
+        setTransactionStatus(null);
+        setStatusError(null);
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          setPollingInterval(null);
+        }
+      }
     }
   };
 
@@ -260,6 +276,85 @@ export default function SwapFlow() {
     }
   };
 
+  // Check transaction status
+  const checkTransactionStatus = async (transactionId) => {
+    try {
+      const res = await apiClient.post("/users/api/changelly/confirm-transaction/", {
+        transaction_id: transactionId,
+      });
+
+      const result = res.data?.result;
+      
+      if (!result) {
+        throw new Error("Invalid response from server");
+      }
+
+      return result;
+    } catch (err) {
+      console.error("Status check error:", err);
+      throw err;
+    }
+  };
+
+  // Confirm transaction (manual check)
+  const handleConfirmTransaction = async () => {
+    if (!transactionResult?.id && !transactionResult?.transactionId) return;
+
+    setConfirmingTransaction(true);
+    setStatusError(null);
+
+    try {
+      const transactionId = transactionResult.id || transactionResult.transactionId;
+      const status = await checkTransactionStatus(transactionId);
+      
+      setTransactionStatus(status);
+      
+      // If status is complete, move to step 4
+      const statusValue = status?.status || status;
+      if (statusValue === 'finished' || statusValue === 'success' || statusValue === 'completed') {
+        setCurrentStep(4);
+      } else if (statusValue === 'failed' || statusValue === 'expired') {
+        setStatusError(`Transaction ${statusValue}. Please create a new swap.`);
+      } else {
+        // Still processing
+        setStatusError(`Transaction status: ${statusValue}. Please wait and try again.`);
+      }
+    } catch (err) {
+      console.error("Confirmation error:", err);
+      setStatusError(err.response?.data?.error || "Unable to verify transaction. Please try again.");
+    } finally {
+      setConfirmingTransaction(false);
+    }
+  };
+
+  // Auto-poll transaction status when on step 4
+  useEffect(() => {
+    if (currentStep === 4 && transactionResult) {
+      const transactionId = transactionResult.id || transactionResult.transactionId;
+      
+      // Poll every 10 seconds
+      const interval = setInterval(async () => {
+        try {
+          const status = await checkTransactionStatus(transactionId);
+          setTransactionStatus(status);
+          
+          // Stop polling if transaction is complete or failed
+          const statusValue = status?.status || status;
+          if (statusValue === 'finished' || statusValue === 'success' || statusValue === 'completed' || 
+              statusValue === 'failed' || statusValue === 'expired') {
+            clearInterval(interval);
+          }
+        } catch (err) {
+          console.error("Polling error:", err);
+        }
+      }, 10000);
+
+      setPollingInterval(interval);
+
+      return () => clearInterval(interval);
+    }
+  }, [currentStep, transactionResult]);
+
   const resetFlow = () => {
     setCurrentStep(1);
     setFromAmount("");
@@ -271,21 +366,32 @@ export default function SwapFlow() {
     setTransactionError(null);
     setCurrentQuote(null);
     setQuoteError(null);
+    setTransactionStatus(null);
+    setStatusError(null);
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
+    }
+  };
+
+  const isTransactionComplete = () => {
+    const statusValue = transactionStatus?.status || transactionStatus;
+    return statusValue === 'finished' || statusValue === 'success' || statusValue === 'completed';
   };
 
   return (
     <>
       {/* Progress Indicator */}
       <div className="flex items-center justify-center mb-6 gap-2">
-        {[1, 2, 3].map((step) => (
+        {[1, 2, 3, 4].map((step) => (
           <div key={step} className="flex items-center">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
               currentStep === step ? "bg-indigo-600 text-white" : 
-              currentStep > step || (currentStep === 3 && transactionResult) ? "bg-green-600 text-white" : "bg-gray-700 text-gray-400"
+              currentStep > step || (step === 4 && isTransactionComplete()) ? "bg-green-600 text-white" : "bg-gray-700 text-gray-400"
             }`}>
-              {currentStep > step || (step === 3 && transactionResult) ? <Check className="w-4 h-4" /> : step}
+              {currentStep > step || (step === 4 && isTransactionComplete()) ? <Check className="w-4 h-4" /> : step}
             </div>
-            {step < 3 && <div className={`w-12 h-1 ${currentStep > step ? "bg-green-600" : "bg-gray-700"}`} />}
+            {step < 4 && <div className={`w-12 h-1 ${currentStep > step ? "bg-green-600" : "bg-gray-700"}`} />}
           </div>
         ))}
       </div>
@@ -293,7 +399,6 @@ export default function SwapFlow() {
       {/* STEP 1: Amount & Pair Selection */}
       {currentStep === 1 && (
         <div className="space-y-6 relative">
-          {/* You Send */}
           <div className="border border-white/10 bg-gray-800/40 rounded-2xl p-4 backdrop-blur-md relative z-30">
             <p className="text-xs text-gray-400 mb-1">You Send</p>
             <div className="flex items-center justify-between">
@@ -314,7 +419,6 @@ export default function SwapFlow() {
             </div>
           </div>
 
-          {/* Swap Icon */}
           <div className="flex justify-center relative z-10">
             <button
               onClick={handleSwapCoins}
@@ -324,7 +428,6 @@ export default function SwapFlow() {
             </button>
           </div>
 
-          {/* You Get */}
           <div className="border border-white/10 bg-gray-800/40 rounded-2xl p-4 backdrop-blur-md relative z-20">
             <p className="text-xs text-gray-400 mb-1">You Get (estimated)</p>
             <div className="flex items-center justify-between">
@@ -429,7 +532,6 @@ export default function SwapFlow() {
               <p className="text-xs text-yellow-200">⚠️ Double-check your address. Transactions cannot be reversed.</p>
             </div>
 
-            {/* Transaction Summary */}
             <div className="bg-gray-800/60 rounded-xl p-4 space-y-2">
               <p className="text-xs text-gray-400 mb-2">Transaction Summary</p>
               <div className="flex justify-between text-sm">
@@ -463,7 +565,7 @@ export default function SwapFlow() {
         </div>
       )}
 
-      {/* STEP 3: Confirm & Execute */}
+      {/* STEP 3: Create Transaction & Await Payment */}
       {currentStep === 3 && (
         <div className="space-y-6">
           {!transactionResult && !transactionError && (
@@ -536,23 +638,21 @@ export default function SwapFlow() {
                     <Loader2 className="w-4 h-4 animate-spin" /> Creating Transaction...
                   </span>
                 ) : (
-                  "Confirm Swap"
+                  "Create Swap Transaction"
                 )}
               </button>
             </>
           )}
 
-          {/* Transaction Success */}
+          {/* Transaction Created - Awaiting Payment */}
           {transactionResult && !transactionError && (
             <div className="space-y-6">
               <div className="text-center">
-                <div className="w-20 h-20 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-green-500/50">
-                  <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
+                <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/50">
+                  <Clock className="w-10 h-10 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-white mb-2">Transaction Created!</h3>
-                <p className="text-sm text-gray-400">Send your {fromCoin} to the address below to complete the swap</p>
+                <h3 className="text-2xl font-bold text-white mb-2">Send Your {fromCoin}</h3>
+                <p className="text-sm text-gray-400">Transfer funds to the address below to complete your swap</p>
               </div>
 
               <div className="bg-gray-800/60 rounded-xl p-5 space-y-4">
@@ -566,7 +666,16 @@ export default function SwapFlow() {
                 </div>
 
                 <div>
-                  <p className="text-xs text-gray-400 mb-2">Deposit Address ({fromCoin})</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs text-gray-400">Deposit Address ({fromCoin})</p>
+                    <button
+                      onClick={() => copyToClipboard(transactionResult.payinAddress || transactionResult.depositAddress)}
+                      className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition"
+                    >
+                      <Copy className="w-3 h-3" />
+                      {copiedAddress ? "Copied!" : "Copy"}
+                    </button>
+                  </div>
                   <div className="bg-gray-900/50 p-3 rounded-lg border-2 border-indigo-500/30">
                     <p className="text-sm text-white font-mono break-all">
                       {transactionResult.payinAddress || transactionResult.depositAddress}
@@ -576,19 +685,19 @@ export default function SwapFlow() {
 
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="text-gray-400 mb-1">Send Amount</p>
+                    <p className="text-gray-400 mb-1">Amount to Send</p>
                     <p className="text-white font-semibold">{formatNumber(Number(fromAmount), 8)} {fromCoin}</p>
                   </div>
                   <div>
-                    <p className="text-gray-400 mb-1">Receive Amount</p>
+                    <p className="text-gray-400 mb-1">You Will Receive</p>
                     <p className="text-white font-semibold">{formatNumber(Number(toAmount), 8)} {toCoin}</p>
                   </div>
                 </div>
 
                 {transactionResult.payinExtraId && (
                   <div>
-                    <p className="text-xs text-gray-400 mb-2">Extra ID / Memo</p>
-                    <div className="bg-gray-900/50 p-3 rounded-lg">
+                    <p className="text-xs text-gray-400 mb-2">Extra ID / Memo (Required)</p>
+                    <div className="bg-gray-900/50 p-3 rounded-lg border border-yellow-500/30">
                       <p className="text-sm text-white font-mono">{transactionResult.payinExtraId}</p>
                     </div>
                   </div>
@@ -596,17 +705,46 @@ export default function SwapFlow() {
               </div>
 
               <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3">
-                <p className="text-xs text-yellow-200">
-                  ⚠️ Send exactly {formatNumber(Number(fromAmount), 8)} {fromCoin} to the deposit address. 
-                  Sending a different amount may result in delays or loss of funds.
-                </p>
+                <p className="text-xs text-yellow-200 mb-2 font-semibold">⚠️ Important Instructions:</p>
+                <ul className="text-xs text-yellow-200 space-y-1 list-disc list-inside">
+                  <li>Send exactly {formatNumber(Number(fromAmount), 8)} {fromCoin} to the deposit address above</li>
+                  <li>Sending a different amount may result in delays or loss of funds</li>
+                  {transactionResult.payinExtraId && (
+                    <li>Don't forget to include the Extra ID/Memo when sending</li>
+                  )}
+                  <li>After sending, click "Confirm Transaction" below to verify completion</li>
+                </ul>
               </div>
 
+              {statusError && (
+                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3">
+                  <p className="text-xs text-red-400">{statusError}</p>
+                </div>
+              )}
+
               <button
-                onClick={resetFlow}
+                onClick={handleConfirmTransaction}
+                disabled={confirmingTransaction}
+                className={`w-full py-3 text-white font-semibold rounded-2xl transition-all shadow-lg ${
+                  confirmingTransaction
+                    ? "bg-gray-700 cursor-not-allowed opacity-60"
+                    : "bg-green-600 hover:bg-green-700"
+                }`}
+              >
+                {confirmingTransaction ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Verifying...
+                  </span>
+                ) : (
+                  "Confirm Transaction"
+                )}
+              </button>
+
+              <button
+                onClick={goBack}
                 className="w-full py-3 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-2xl transition-colors"
               >
-                Start New Swap
+                Go Back
               </button>
             </div>
           )}
@@ -639,6 +777,80 @@ export default function SwapFlow() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* STEP 4: Transaction Complete */}
+      {currentStep === 4 && (
+        <div className="space-y-6">
+          <div className="text-center">
+            <div className="w-20 h-20 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-green-500/50">
+              <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-2">Swap Complete!</h3>
+            <p className="text-sm text-gray-400">Your transaction has been successfully processed</p>
+          </div>
+
+          {transactionStatus && (
+            <div className="bg-gray-800/60 rounded-xl p-5 space-y-4">
+              <div>
+                <p className="text-xs text-gray-400 mb-2">Transaction Status</p>
+                <div className="bg-gray-900/50 p-3 rounded-lg">
+                  <p className="text-sm text-green-400 font-semibold capitalize">
+                    {transactionStatus.status || 'Completed'}
+                  </p>
+                </div>
+              </div>
+
+              {transactionStatus.payoutHash && (
+                <div>
+                  <p className="text-xs text-gray-400 mb-2">Payout Transaction Hash</p>
+                  <div className="bg-gray-900/50 p-3 rounded-lg">
+                    <p className="text-sm text-white font-mono break-all">
+                      {transactionStatus.payoutHash}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4 text-sm pt-4 border-t border-white/10">
+                <div>
+                  <p className="text-gray-400 mb-1">You Sent</p>
+                  <p className="text-white font-semibold">{formatNumber(Number(fromAmount), 8)} {fromCoin}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 mb-1">You Received</p>
+                  <p className="text-white font-semibold">{formatNumber(Number(toAmount), 8)} {toCoin}</p>
+                </div>
+              </div>
+
+              {transactionStatus.payoutHashLink && (
+                <a
+                  href={transactionStatus.payoutHashLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-center text-sm text-indigo-400 hover:text-indigo-300 transition"
+                >
+                  View on Block Explorer →
+                </a>
+              )}
+            </div>
+          )}
+
+          <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3">
+            <p className="text-xs text-green-200">
+              ✅ Your {toCoin} has been sent to your wallet address. It may take a few minutes to appear in your wallet depending on network confirmation times.
+            </p>
+          </div>
+
+          <button
+            onClick={resetFlow}
+            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-2xl transition-colors"
+          >
+            Start New Swap
+          </button>
         </div>
       )}
     </>
