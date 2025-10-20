@@ -14,6 +14,7 @@ function useDebounce(callback, delay, deps) {
 
 export default function SwapFlow() {
   const [currentStep, setCurrentStep] = useState(1);
+  const [confirmCountdown, setConfirmCountdown] = useState(0);
 
   // Coins data from Changelly
   const [changellyCoins, setChangellyCoins] = useState([]);
@@ -139,9 +140,33 @@ export default function SwapFlow() {
         fee: quoteData.fee || null,
       });
 
-    } catch (err) {
+    } // Replace the catch block in fetchExchangeRate:
+    catch (err) {
       console.error("Exchange rate error:", err);
-      setQuoteError(err.response?.data?.error || err.message || "Unable to fetch exchange rate. Please try again.");
+      
+      let errorMessage = "Unable to fetch exchange rate. Please try again.";
+      
+      // Check if amount is below minimum
+      if (rateInfo?.minAmount && Number(fromAmount) < Number(rateInfo.minAmount)) {
+        errorMessage = `Amount is below minimum. Minimum: ${formatNumber(Number(rateInfo.minAmount), 8)} ${fromCoin}`;
+      }
+      // Check if amount is above maximum
+      else if (rateInfo?.maxAmount && Number(fromAmount) > Number(rateInfo.maxAmount)) {
+        errorMessage = `Amount exceeds maximum. Maximum: ${formatNumber(Number(rateInfo.maxAmount), 8)} ${fromCoin}`;
+      }
+      // Check response for min/max info even if rateInfo not set
+      else if (err.response?.data?.result) {
+        const result = err.response.data.result;
+        const resultData = Array.isArray(result) ? result[0] : result;
+        
+        if (resultData?.minFrom && Number(fromAmount) < Number(resultData.minFrom)) {
+          errorMessage = `Amount is below minimum. Minimum: ${formatNumber(Number(resultData.minFrom), 8)} ${fromCoin}`;
+        } else if (resultData?.maxFrom && Number(fromAmount) > Number(resultData.maxFrom)) {
+          errorMessage = `Amount exceeds maximum. Maximum: ${formatNumber(Number(resultData.maxFrom), 8)} ${fromCoin}`;
+        }
+      }
+      
+      setQuoteError(err.response?.data?.error || errorMessage);
       setToAmount("");
       setCurrentQuote(null);
       setRateInfo(null);
@@ -299,12 +324,20 @@ export default function SwapFlow() {
   // Confirm transaction (manual check)
   const handleConfirmTransaction = async () => {
     if (!transactionResult?.id && !transactionResult?.transactionId) return;
-
+  
     setConfirmingTransaction(true);
     setStatusError(null);
-
+    setConfirmCountdown(15);
+  
     try {
       const transactionId = transactionResult.id || transactionResult.transactionId;
+      
+      // Countdown from 15 to 0
+      for (let i = 14; i >= 0; i--) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        setConfirmCountdown(i);
+      }
+      
       const status = await checkTransactionStatus(transactionId);
       
       setTransactionStatus(status);
@@ -314,16 +347,18 @@ export default function SwapFlow() {
       if (statusValue === 'finished' || statusValue === 'success' || statusValue === 'completed') {
         setCurrentStep(4);
       } else if (statusValue === 'failed' || statusValue === 'expired') {
-        setStatusError(`Transaction ${statusValue}. Please create a new swap.`);
+        setStatusError(`Transaction ${statusValue}. Please try again or contact support.`);
+      } else if (statusValue === 'waiting' || statusValue === 'confirming' || statusValue === 'exchanging' || statusValue === 'sending') {
+        setStatusError(`Transaction is still processing (${statusValue}). Please wait a few more minutes and try again.`);
       } else {
-        // Still processing
-        setStatusError(`Transaction status: ${statusValue}. Please wait and try again.`);
+        setStatusError(`Payment not detected yet. Please ensure you sent the exact amount to the correct address, then try again in a few minutes.`);
       }
     } catch (err) {
       console.error("Confirmation error:", err);
-      setStatusError(err.response?.data?.error || "Unable to verify transaction. Please try again.");
+      setStatusError("Unable to verify transaction status. Please wait a few minutes and try again, or contact support if the issue persists.");
     } finally {
       setConfirmingTransaction(false);
+      setConfirmCountdown(0);
     }
   };
 
@@ -733,7 +768,11 @@ export default function SwapFlow() {
               >
                 {confirmingTransaction ? (
                   <span className="flex items-center justify-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" /> Verifying...
+                    <Loader2 className="w-4 h-4 animate-spin" /> 
+                    {confirmCountdown > 0 
+                      ? `Checking payment... (${confirmCountdown}s)` 
+                      : "Verifying transaction..."
+                    }
                   </span>
                 ) : (
                   "Confirm Transaction"

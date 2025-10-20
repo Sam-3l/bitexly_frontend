@@ -3,6 +3,7 @@ import { ArrowDownUp, Loader2, X, ChevronLeft, Check, AlertCircle } from "lucide
 import { validateWalletAddress } from "../../utils/walletValidator";
 import { onrampClient } from "../../utils/onrampClient";
 import { moonpayClient } from "../../utils/moonpayClient";
+import { fetchProviderLimits, analyzeNoProvidersError, checkMoonPayLimits } from "../../utils/limitsChecker";
 import CoinSelect from "./CoinSelect";
 import CurrencySelect from "./CurrencySelect";
 import apiClient from "../../utils/apiClient";
@@ -26,11 +27,14 @@ export default function BuyFlow() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null);
   const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(false);
 
+  const [detailedError, setDetailedError] = useState(null);
+  const [providerLimits, setProviderLimits] = useState(null);
+
   // Step 1: Amount, Pair & Provider
-  const [fiatAmount, setFiatAmount] = useState("800000");
+  const [fiatAmount, setFiatAmount] = useState("1000");
   const [cryptoAmount, setCryptoAmount] = useState("");
   const [fromCoin, setFromCoin] = useState("BTC");
-  const [toCurrency, setToCurrency] = useState("NGN");
+  const [toCurrency, setToCurrency] = useState("USD");
   const [userTyped, setUserTyped] = useState("fiat");
 
   const [loadingQuote, setLoadingQuote] = useState(false);
@@ -116,23 +120,24 @@ export default function BuyFlow() {
   // Fetch quotes from all providers (Meld + Direct)
   const fetchQuote = useCallback(async () => {
     setQuoteError(null);
+    setDetailedError(null);
     setCurrentQuote(null);
-
+  
     try {
       if (!fromCoin || !toCurrency || !fiatAmount || Number(fiatAmount) <= 0) return;
-
+  
       setLoadingQuote(true);
-
+  
       const quoteParams = {
         sourceAmount: Number(fiatAmount),
         sourceCurrency: toCurrency,
         destinationCurrency: fromCoin,
         countryCode: toCurrency.slice(0, 2),
       };
-
+  
       // Fetch from all sources in parallel
       const quotePromises = [];
-
+  
       // 1. Meld providers
       const meldPayload = {
         action: "BUY",
@@ -153,39 +158,72 @@ export default function BuyFlow() {
             return [];
           })
       );
-
-      // 2. OnRamp
+  
+      // 2. OnRamp (ONLY for NGN)
+      if (toCurrency === "NGN") {
+        quotePromises.push(
+          onrampClient.getBuyQuote(quoteParams)
+            .then(quote => [quote])
+            .catch(err => {
+              console.error("OnRamp quote error:", err);
+              return [];
+            })
+        );
+      }
+  
+      // 3. MoonPay (validate limits first)
       quotePromises.push(
-        onrampClient.getBuyQuote(quoteParams)
-          .then(quote => [quote])
-          .catch(err => {
-            console.error("OnRamp quote error:", err);
+        checkMoonPayLimits({
+          fromCoin,
+          toCurrency,
+          amount: fiatAmount,
+          action: "BUY"
+        }).then(limitCheck => {
+          if (!limitCheck.isValid) {
+            console.log("MoonPay: Amount outside limits", limitCheck.reason);
             return [];
-          })
+          }
+          
+          return moonpayClient.getBuyQuote(quoteParams)
+            .then(quote => [quote])
+            .catch(err => {
+              console.error("MoonPay quote error:", err);
+              return [];
+            });
+        })
       );
-
-      // 3. MoonPay
-      quotePromises.push(
-        moonpayClient.getBuyQuote(quoteParams)
-          .then(quote => [quote])
-          .catch(err => {
-            console.error("MoonPay quote error:", err);
-            return [];
-          })
-      );
-
+  
       const results = await Promise.all(quotePromises);
       const allQuotes = results.flat();
-
+  
       if (allQuotes.length === 0) {
-        setQuoteError("No providers available for this transaction");
+        // Fetch limits to provide detailed error
+        const limits = await fetchProviderLimits({
+          fromCoin,
+          toCurrency,
+          action: "BUY"
+        });
+        
+        setProviderLimits(limits);
+        
+        const errorInfo = analyzeNoProvidersError(
+          fiatAmount,
+          limits,
+          "BUY",
+          fromCoin,
+          toCurrency
+        );
+        
+        setCryptoAmount("");
+        setQuoteError(errorInfo.message);
+        setDetailedError(errorInfo);
         setAvailableProviders([]);
         setSelectedProvider(null);
         return;
       }
-
+  
       setAvailableProviders(allQuotes);
-
+  
       // If no provider selected yet, select the first one
       if (!selectedProvider) {
         setSelectedProvider(allQuotes[0]);
@@ -202,6 +240,7 @@ export default function BuyFlow() {
       }
     } catch (err) {
       console.error("Quote error:", err);
+      setCryptoAmount("");
       setQuoteError("Unable to fetch quotes. Please try again.");
       setAvailableProviders([]);
       setSelectedProvider(null);
@@ -453,9 +492,29 @@ export default function BuyFlow() {
             )}
 
             {quoteError && (
-              <div className="flex items-start gap-2 mt-2 text-xs text-red-400 bg-red-500/10 p-2 rounded">
-                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <span>{quoteError}</span>
+              <div className="flex flex-col gap-2 mt-2">
+                <div className="flex items-start gap-2 text-xs text-red-400 bg-red-500/10 p-2 rounded">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span>{quoteError}</span>
+                </div>
+                
+                {detailedError && detailedError.suggestion && (
+                  <div className="flex items-start gap-2 text-xs text-yellow-400 bg-yellow-500/10 p-2 rounded">
+                    <span>💡 {detailedError.suggestion}</span>
+                  </div>
+                )}
+                
+                {detailedError && detailedError.minAmount && (
+                  <div className="text-xs text-gray-400 mt-1">
+                    Minimum: {formatNumber(detailedError.minAmount, 2)} {toCurrency}
+                  </div>
+                )}
+                
+                {detailedError && detailedError.maxAmount && (
+                  <div className="text-xs text-gray-400 mt-1">
+                    Maximum: {formatNumber(detailedError.maxAmount, 2)} {toCurrency}
+                  </div>
+                )}
               </div>
             )}
           </div>
