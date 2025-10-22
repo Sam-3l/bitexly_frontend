@@ -471,18 +471,8 @@ export default function SellFlow() {
             )}
           </div>
 
-          {/* Provider Selection Dropdown */}
-          <div className="relative z-[8]">
-            <ProviderSelect
-              availableProviders={availableProviders}
-              selectedProvider={selectedProvider}
-              setSelectedProvider={setSelectedProvider}
-              loadingQuote={loadingQuote}
-            />
-          </div>
-
           {/* Payment Method Selection */}
-          <div className="relative z-[4]">
+          <div className="relative z-[8]">
             <PaymentMethodSelect
                 availableMethods={paymentMethods}
                 selectedMethod={selectedPaymentMethod}
@@ -490,6 +480,16 @@ export default function SellFlow() {
                 loadingMethods={loadingPaymentMethods}
                 currency={toCurrency}
                 action="SELL"
+            />
+          </div>
+
+          {/* Provider Selection Dropdown */}
+          <div className="relative z-[4]">
+            <ProviderSelect
+              availableProviders={availableProviders}
+              selectedProvider={selectedProvider}
+              setSelectedProvider={setSelectedProvider}
+              loadingQuote={loadingQuote}
             />
           </div>
 

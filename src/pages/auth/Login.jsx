@@ -45,7 +45,7 @@ export default function Login() {
         {/* Logo and App Name */}
         <div className="flex flex-col items-center mb-6">
           <img
-            src="/logo.png" // 🟡 Replace this with your actual logo URL
+            src="/logo.png"
             alt="Bitexly Logo"
             className="w-16 h-16 mb-2"
           />
