@@ -3,12 +3,6 @@ import { Twitter, Send, MessageCircle, Mail } from 'lucide-react';
 
 const Footer = () => {
   const footerLinks = {
-    product: [
-      { label: 'Features', href: '#features' },
-      { label: 'Providers', href: '#providers' },
-      { label: 'Pricing', href: '#pricing' },
-      { label: 'API', href: '#api' }
-    ],
     company: [
       { label: 'About', href: '#about' },
       { label: 'Blog', href: '#blog' },

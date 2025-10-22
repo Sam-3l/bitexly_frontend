@@ -11,7 +11,7 @@ const CTASection = () => {
   ];
 
   return (
-    <section className="py-24 lg:py-32 bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 dark:from-slate-900 dark:via-blue-900/20 dark:to-slate-900 relative overflow-hidden">
+    <section className="py-10 lg:py-10 bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 dark:from-slate-900 dark:via-blue-900/20 dark:to-slate-900 relative overflow-hidden">
       {/* Animated Background Blobs */}
       <div className="absolute inset-0">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/30 rounded-full blur-3xl animate-float"></div>
@@ -40,7 +40,7 @@ const CTASection = () => {
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-6 justify-center mb-16 animate-fade-in-up animation-delay-400">
             <Link to="/register">
-                <Button size="lg" icon={ArrowRight} className="group">
+                <Button size="lg" icon={ArrowRight} className="group w-full">
                     Get Started
                 </Button>
             </Link>

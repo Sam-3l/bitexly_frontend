@@ -22,7 +22,7 @@ export default function Particles() {
         return (
           <motion.div
             key={i}
-            className="absolute bg-white rounded-full opacity-30"
+            className="absolute bg-indigo-400 dark:bg-white rounded-full opacity-20 dark:opacity-30"
             style={{
               width: size,
               height: size,

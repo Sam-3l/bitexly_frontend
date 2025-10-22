@@ -13,15 +13,15 @@ const FeatureCard = ({ icon: Icon, title, description, color, delay }) => {
       
       <div className="relative z-10">
         {/* Icon Container */}
-        <div className={`w-16 h-16 bg-gradient-to-br ${color} rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 shadow-xl`}>
-          <Icon className="text-white" size={32} />
+        <div className={`w-14 h-14 bg-gradient-to-br ${color} rounded-2xl flex items-center justify-center mb-5 group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 shadow-xl`}>
+          <Icon className="text-white" size={28} />
         </div>
         
         {/* Content */}
-        <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-4 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors duration-300">
+        <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white mb-3 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors duration-300">
           {title}
         </h3>
-        <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+        <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 leading-relaxed">
           {description}
         </p>
       </div>
@@ -79,7 +79,7 @@ const FeaturesSection = () => {
   ];
 
   return (
-    <section id="features" className="py-24 lg:py-32 bg-white dark:bg-slate-900 relative overflow-hidden">
+    <section id="features" className="py-10 lg:py-10 bg-white dark:bg-slate-900 relative overflow-hidden">
       {/* Background Pattern */}
       <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
       
@@ -91,11 +91,11 @@ const FeaturesSection = () => {
         {/* Section Header */}
         <div className="text-center mb-16 lg:mb-20 animate-fade-in">
           <Badge variant="blue" className="mb-6">Core Features</Badge>
-          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 dark:text-white mb-6">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-bold text-slate-900 dark:text-white mb-5">
             Everything You Need in
             <span className="block mt-2 bg-gradient-to-r from-blue-500 via-purple-600 to-pink-600 bg-clip-text text-transparent">One Platform</span>
           </h2>
-          <p className="text-xl text-slate-600 dark:text-slate-400 max-w-3xl mx-auto leading-relaxed">
+          <p className="text-base sm:text-lg text-slate-600 dark:text-slate-400 max-w-3xl mx-auto leading-relaxed">
             Experience the future of crypto trading with our comprehensive suite of features designed for simplicity and security
           </p>
         </div>

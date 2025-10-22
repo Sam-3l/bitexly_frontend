@@ -3,44 +3,35 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(() => {
+    const savedTheme = localStorage.getItem('bitexly-theme');
+    if (savedTheme === 'light') return false;
+    if (savedTheme === 'dark') return true;
+    return false; // default to light
+  });
 
   useEffect(() => {
-    // Check localStorage first
-    const savedTheme = localStorage.getItem('bitexly-theme');
-    if (savedTheme) {
-      const isDarkMode = savedTheme === 'dark';
-      setIsDark(isDarkMode);
-      if (isDarkMode) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('bitexly-theme', 'dark');
     } else {
-      // Default to light mode
       document.documentElement.classList.remove('dark');
       localStorage.setItem('bitexly-theme', 'light');
     }
-  }, []);
+  }, [isDark]);
 
-  const toggleTheme = () => {
-    setIsDark(prev => {
-      const newIsDark = !prev;
-      
-      if (newIsDark) {
-        document.documentElement.classList.add('dark');
-        localStorage.setItem('bitexly-theme', 'dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-        localStorage.setItem('bitexly-theme', 'light');
-      }
-      
-      return newIsDark;
-    });
+  const toggleTheme = () => setIsDark(prev => !prev);
+
+  // Backward-compatible context value
+  const value = {
+    isDark,
+    toggleTheme,
+    // backward compatibility for components expecting a "theme" string
+    theme: isDark ? 'dark' : 'light',
   };
 
   return (
-    <ThemeContext.Provider value={{ isDark, toggleTheme }}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   );

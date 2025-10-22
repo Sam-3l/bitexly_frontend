@@ -13,7 +13,7 @@ const ProviderCard = ({ name, logo, delay }) => {
       <div className="relative z-10">
         <div className="flex items-center justify-between mb-4">
           {/* Provider Logo */}
-          <div className="w-20 h-20 bg-slate-50 dark:bg-slate-700 rounded-xl flex items-center justify-center p-3 shadow-lg group-hover:shadow-xl group-hover:scale-110 transition-all duration-300 border border-slate-200 dark:border-slate-600">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-slate-50 dark:bg-slate-700 rounded-xl flex items-center justify-center p-3 shadow-lg group-hover:shadow-xl group-hover:scale-110 transition-all duration-300 border border-slate-200 dark:border-slate-600">
             <img 
               src={`/providers/${logo}.png`} 
               alt={name}
@@ -33,10 +33,10 @@ const ProviderCard = ({ name, logo, delay }) => {
         </div>
         
         {/* Provider Info */}
-        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors duration-300">
+        <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white mb-2 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors duration-300">
           {name}
         </h3>
-        <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+        <p className="text-slate-600 dark:text-slate-400 text-xs sm:text-sm leading-relaxed">
           Verified partner with competitive rates
         </p>
       </div>
@@ -53,18 +53,12 @@ const ProvidersSection = () => {
     { name: "Onramp Money", logo: "onramp" },
     { name: "Transak", logo: "transak" },
     { name: "Mercuryo", logo: "mercuryo" },
-    { name: "Banxa", logo: "banxa" },
-    { name: "Simplex", logo: "simplex" },
-    { name: "Ramp Network", logo: "ramp" },
-    { name: "Yellowcard", logo: "yellowcard" },
-    { name: "Guardarian", logo: "guardarian" },
-    { name: "ChangeNOW", logo: "changenow" },
-    { name: "Indacoin", logo: "indacoin" },
-    { name: "Meld", logo: "meld" }
+    { name: "Meld", logo: "meld" },
+    { name: "Changelly", logo: "changelly" },
   ];
 
   return (
-    <section id="providers" className="py-24 lg:py-32 bg-slate-50 dark:bg-slate-900 relative overflow-hidden">
+    <section id="providers" className="py-10 lg:py-10 bg-slate-50 dark:bg-slate-900 relative overflow-hidden">
       {/* Background Elements */}
       <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
       <div className="absolute top-1/2 left-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
@@ -73,13 +67,13 @@ const ProvidersSection = () => {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         {/* Section Header */}
         <div className="text-center mb-16 lg:mb-20 animate-fade-in">
-          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 dark:text-white mb-6">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-bold text-slate-900 dark:text-white mb-5">
             Trusted{' '}
             <span className="bg-gradient-to-r from-blue-500 via-purple-600 to-pink-600 bg-clip-text text-transparent">
               Partners
             </span>
           </h2>
-          <p className="text-xl text-slate-600 dark:text-slate-400 max-w-3xl mx-auto leading-relaxed">
+          <p className="text-base sm:text-lg text-slate-600 dark:text-slate-400 max-w-3xl mx-auto leading-relaxed">
             We've partnered with the world's leading crypto providers to bring you the best rates, widest coverage, and most reliable service
           </p>
         </div>
@@ -97,7 +91,7 @@ const ProvidersSection = () => {
 
         {/* CTA Text */}
         <div className="text-center mt-16 animate-fade-in" style={{ animationDelay: '600ms' }}>
-          <p className="text-slate-600 dark:text-slate-400 text-lg">
+          <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-base">
             And more providers being added every month
           </p>
         </div>

@@ -18,7 +18,7 @@ const AboutSection = () => {
   ];
 
   return (
-    <section id="about" className="py-24 lg:py-32 bg-white dark:bg-slate-800 relative overflow-hidden">
+    <section id="about" className="py-10 lg:py-10 bg-white dark:bg-slate-800 relative overflow-hidden">
       {/* Background Elements */}
       <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
       <div className="absolute top-0 left-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
@@ -31,14 +31,14 @@ const AboutSection = () => {
             <div className="animate-slide-in-left">
               <Badge variant="purple" className="mb-6">About Bitexly</Badge>
               
-              <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 dark:text-white mb-6">
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-bold text-slate-900 dark:text-white mb-5">
                 Simplifying Access to
                 <span className="block mt-2 bg-gradient-to-r from-blue-500 via-purple-600 to-pink-600 bg-clip-text text-transparent">
                   Digital Assets
                 </span>
               </h2>
               
-              <p className="text-xl text-slate-600 dark:text-slate-300 leading-relaxed mb-8">
+              <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed mb-8">
                 Bitexly is a digital asset platform designed to make crypto trading simple and accessible.
                 We bring together trusted providers, intuitive tools, and secure infrastructure — helping users buy and manage cryptocurrencies with confidence.
               </p>
@@ -51,10 +51,10 @@ const AboutSection = () => {
                     className="flex items-center space-x-3 group animate-fade-in"
                     style={{ animationDelay: `${index * 100}ms` }}
                   >
-                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300 shadow-lg">
-                      <Check className="text-white" size={16} />
+                    <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300 shadow-lg">
+                      <Check className="text-white" size={14} />
                     </div>
-                    <span className="text-lg text-slate-700 dark:text-slate-300 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors duration-300">
+                    <span className="text-sm sm:text-base text-slate-700 dark:text-slate-300 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors duration-300">
                       {benefit}
                     </span>
                   </div>
@@ -68,18 +68,18 @@ const AboutSection = () => {
               <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-purple-600/20 rounded-3xl blur-3xl"></div>
               
               {/* Stats Container */}
-              <div className="relative bg-white dark:bg-slate-900 backdrop-blur-2xl rounded-3xl border-2 border-slate-200 dark:border-slate-700 p-8 shadow-2xl">
-                <div className="grid grid-cols-2 gap-6">
+              <div className="relative bg-white dark:bg-slate-900 backdrop-blur-2xl rounded-3xl border-2 border-slate-200 dark:border-slate-700 p-6 sm:p-8 shadow-2xl">
+                <div className="grid grid-cols-2 gap-4 sm:gap-6">
                   {stats.map((stat, index) => (
                     <div 
                       key={index} 
-                      className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-6 border-2 border-slate-200 dark:border-slate-700 hover:border-blue-500/50 dark:hover:border-blue-400/50 transition-all duration-500 hover:shadow-xl hover:-translate-y-2 group animate-scale-in"
+                      className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 sm:p-6 border-2 border-slate-200 dark:border-slate-700 hover:border-blue-500/50 dark:hover:border-blue-400/50 transition-all duration-500 hover:shadow-xl hover:-translate-y-2 group animate-scale-in"
                       style={{ animationDelay: `${index * 100}ms` }}
                     >
-                      <div className={`text-4xl lg:text-5xl font-bold bg-gradient-to-r ${stat.gradient} bg-clip-text text-transparent mb-3 group-hover:scale-110 transition-transform duration-300`}>
+                      <div className={`text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r ${stat.gradient} bg-clip-text text-transparent mb-2 group-hover:scale-110 transition-transform duration-300`}>
                         {stat.value}
                       </div>
-                      <div className="text-slate-600 dark:text-slate-400 font-medium">
+                      <div className="text-slate-600 dark:text-slate-400 text-xs sm:text-sm font-medium">
                         {stat.label}
                       </div>
                       
@@ -91,7 +91,7 @@ const AboutSection = () => {
 
                 {/* Bottom Accent */}
                 <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
-                  <p className="text-center text-slate-600 dark:text-slate-400 text-sm">
+                  <p className="text-center text-slate-600 dark:text-slate-400 text-xs sm:text-sm">
                     Built with trust, transparency, and user empowerment in mind.
                   </p>
                 </div>

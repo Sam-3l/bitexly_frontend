@@ -32,7 +32,7 @@ export default function ProviderSelect({
 
   return (
     <div className="relative z-30 w-full" ref={dropdownRef}>
-      <p className="text-xs text-gray-400 mb-1">Payment Provider</p>
+      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Payment Provider</p>
 
       {/* Dropdown Trigger */}
       <div
@@ -40,11 +40,11 @@ export default function ProviderSelect({
         className={`inline-flex items-center gap-2 px-3 py-2 rounded-md transition-all max-w-max ${
           loadingQuote
             ? "cursor-wait opacity-70"
-            : "cursor-pointer hover:bg-white/5 active:scale-[0.98]"
+            : "cursor-pointer hover:bg-gray-100 dark:hover:bg-white/5 active:scale-[0.98]"
         }`}
       >
         {loadingQuote ? (
-          <div className="flex items-center gap-2 text-gray-400 text-sm">
+          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-sm">
             <Loader2 className="w-4 h-4 animate-spin" />
             Loading...
           </div>
@@ -55,23 +55,23 @@ export default function ProviderSelect({
                 .toLowerCase()
                 .replace(/\s+/g, "-")}.png`}
               alt={currentProviderName}
-              className="w-5 h-5 rounded-full object-contain bg-white/10"
+              className="w-5 h-5 rounded-full object-contain bg-gray-200 dark:bg-white/10"
               onError={(e) => (e.target.style.display = "none")}
             />
-            <span className="text-sm text-white font-medium tracking-wide">
+            <span className="text-sm text-gray-900 dark:text-white font-medium tracking-wide">
               {currentProviderName}
             </span>
             <ChevronDown
-              className={`w-4 h-4 text-gray-400 transition-transform ${
+              className={`w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform ${
                 open ? "rotate-180" : ""
               }`}
             />
           </>
         ) : (
           <>
-            <span className="text-sm text-gray-400">Select provider</span>
+            <span className="text-sm text-gray-600 dark:text-gray-400">Select provider</span>
             <ChevronDown
-              className={`w-4 h-4 text-gray-400 transition-transform ${
+              className={`w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform ${
                 open ? "rotate-180" : ""
               }`}
             />
@@ -82,11 +82,11 @@ export default function ProviderSelect({
       {/* Dropdown Menu */}
       <AnimatePresence>
         {open && (
-          <motion.div
-            className="absolute top-full left-0 mt-2 rounded-xl shadow-xl bg-gray-900/85 backdrop-blur-md border border-white/10 overflow-hidden min-w-[14rem] w-auto"
-          >                        
+          <motion.div className="absolute top-full left-0 mt-2 rounded-xl shadow-xl bg-white dark:bg-gray-900/85 backdrop-blur-md border border-gray-200 dark:border-white/10 overflow-hidden min-w-[14rem] w-auto">
             {availableProviders.length === 0 ? (
-              <p className="p-3 text-sm text-gray-400">No providers available</p>
+              <p className="p-3 text-sm text-gray-600 dark:text-gray-400">
+                No providers available
+              </p>
             ) : (
               <ul className="max-h-52 overflow-y-auto">
                 {availableProviders.map((provider, idx) => {
@@ -107,22 +107,20 @@ export default function ProviderSelect({
                       onClick={() => handleSelect(provider)}
                       className={`flex items-center justify-between px-3 py-2 transition-all ${
                         isSelected
-                          ? "bg-indigo-500/20 text-white"
-                          : "hover:bg-white/5 text-gray-300"
+                          ? "bg-indigo-100 dark:bg-indigo-500/20 text-gray-900 dark:text-white"
+                          : "hover:bg-gray-100 dark:hover:bg-white/5 text-gray-800 dark:text-gray-300"
                       } cursor-pointer`}
                     >
                       <div className="flex items-center gap-2">
                         <img
                           src={logoPath}
                           alt={name}
-                          className="w-5 h-5 rounded-full object-contain bg-white/10"
+                          className="w-5 h-5 rounded-full object-contain bg-gray-200 dark:bg-white/10"
                           onError={(e) => (e.target.style.display = "none")}
                         />
                         <span className="text-sm font-medium">{name}</span>
                       </div>
-                      {isSelected && (
-                        <Check className="w-4 h-4 text-indigo-400" />
-                      )}
+                      {isSelected && <Check className="w-4 h-4 text-indigo-400" />}
                     </li>
                   );
                 })}

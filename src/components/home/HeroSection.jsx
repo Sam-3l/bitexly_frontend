@@ -20,10 +20,10 @@ const HeroSection = () => {
       <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
 
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10 py-10">
-        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+        <div className="grid lg:grid-cols-2 gap-8 lg:gap-16 items-center">
           {/* Left Content */}
-          <div className="text-left space-y-8 animate-slide-in-left">
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold leading-tight">
+          <div className="text-left space-y-6 animate-slide-in-left">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold leading-tight">
               <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent animate-gradient">
                 One Platform.
               </span>
@@ -37,7 +37,7 @@ const HeroSection = () => {
               <span className="text-slate-900 dark:text-white">and Swap</span>
             </h1>
 
-            <p className="text-xl text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
+            <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
               Bitexly aggregates the world's leading fiat-to-crypto providers into one simple interface.
               Compare rates in real-time, buy, sell and swap with your favorite payment method. Fast, secure, and borderless.
             </p>
@@ -56,7 +56,7 @@ const HeroSection = () => {
             </div>
 
             {/* Stats */}
-            <div className="flex items-center gap-8 pt-4 flex-wrap">
+            <div className="flex items-center gap-6 sm:gap-8 pt-4 flex-wrap">
               {[
                 { value: '100+', label: 'Currencies' },
                 { value: '15+', label: 'Providers' },
@@ -64,52 +64,52 @@ const HeroSection = () => {
               ].map((stat, idx) => (
                 <React.Fragment key={idx}>
                   <div className="animate-fade-in" style={{ animationDelay: `${idx * 200}ms` }}>
-                    <div className="text-3xl font-bold text-slate-900 dark:text-white">{stat.value}</div>
-                    <div className="text-sm text-slate-600 dark:text-slate-400">{stat.label}</div>
+                    <div className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{stat.value}</div>
+                    <div className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">{stat.label}</div>
                   </div>
-                  {idx < 2 && <div className="w-px h-12 bg-slate-300 dark:bg-slate-700"></div>}
+                  {idx < 2 && <div className="w-px h-10 sm:h-12 bg-slate-300 dark:bg-slate-700"></div>}
                 </React.Fragment>
               ))}
             </div>
           </div>
 
-          {/* Right Content - Demo Preview Card */}
-          <div className="relative hidden lg:block animate-slide-in-right">
+          {/* Right Content - Demo Preview Card - NOW SHOWS ON ALL SCREENS */}
+          <div className="relative animate-slide-in-right">
             <div className="relative w-full">
               {/* Demo Badge */}
-              <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-20">
-                <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-2 rounded-full text-sm font-semibold shadow-lg flex items-center gap-2">
+              <div className="absolute -top-3 sm:-top-4 left-1/2 -translate-x-1/2 z-20">
+                <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 sm:px-6 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-semibold shadow-lg flex items-center gap-2">
                   <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
                   Live Demo Preview
                 </div>
               </div>
 
               {/* Glow Effect */}
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/30 to-purple-600/30 rounded-3xl blur-3xl animate-pulse-slow"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/30 to-purple-600/30 rounded-2xl sm:rounded-3xl blur-3xl animate-pulse-slow"></div>
               
               {/* Card */}
-              <div className="relative bg-white dark:bg-slate-800 backdrop-blur-2xl rounded-3xl border-2 border-slate-200 dark:border-slate-700 p-8 shadow-2xl hover:shadow-blue-500/20 transition-all duration-500 hover:-translate-y-2">
-                <div className="space-y-6">
+              <div className="relative bg-white dark:bg-slate-800 backdrop-blur-2xl rounded-2xl sm:rounded-3xl border-2 border-slate-200 dark:border-slate-700 p-5 sm:p-8 shadow-2xl hover:shadow-blue-500/20 transition-all duration-500 hover:-translate-y-2">
+                <div className="space-y-5 sm:space-y-6">
                   {/* Header */}
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-slate-900 dark:text-white text-lg font-bold">See How It Works</div>
-                      <div className="text-slate-500 dark:text-slate-400 text-sm">Try our interface simulation</div>
+                      <div className="text-slate-900 dark:text-white text-base sm:text-lg font-bold">See How It Works</div>
+                      <div className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm">Try our interface simulation</div>
                     </div>
                   </div>
                   
                   {/* Input Section */}
                   <div className="space-y-4">
-                    <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-400 transition-all duration-300">
-                      <div className="text-slate-600 dark:text-slate-400 text-sm mb-3 font-medium">You Pay</div>
-                      <div className="flex items-center justify-between gap-4">
+                    <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-slate-200 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-400 transition-all duration-300">
+                      <div className="text-slate-600 dark:text-slate-400 text-xs sm:text-sm mb-2 sm:mb-3 font-medium">You Pay</div>
+                      <div className="flex items-center justify-between gap-3 sm:gap-4">
                         <input 
                           type="text" 
                           value={amount}
                           onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
-                          className="bg-transparent text-4xl font-bold text-slate-900 dark:text-white outline-none w-full" 
+                          className="bg-transparent text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 dark:text-white outline-none w-full" 
                         />
-                        <div className="px-4 py-2 bg-white dark:bg-slate-800 rounded-xl text-slate-900 dark:text-white font-semibold border border-slate-300 dark:border-slate-600 shadow-sm">
+                        <div className="px-3 sm:px-4 py-1.5 sm:py-2 bg-white dark:bg-slate-800 rounded-lg sm:rounded-xl text-slate-900 dark:text-white text-sm sm:text-base font-semibold border border-slate-300 dark:border-slate-600 shadow-sm">
                           USD
                         </div>
                       </div>
@@ -117,16 +117,16 @@ const HeroSection = () => {
 
                     {/* Exchange Icon */}
                     <div className="flex justify-center">
-                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform duration-300 cursor-pointer">
-                        <TrendingUp className="text-white" size={24} />
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform duration-300 cursor-pointer">
+                        <TrendingUp className="text-white" size={20} />
                       </div>
                     </div>
 
-                    <div className="bg-orange-50 dark:bg-orange-900/20 rounded-2xl p-6 border border-orange-200 dark:border-orange-700 hover:border-orange-400 dark:hover:border-orange-500 transition-all duration-300">
-                      <div className="text-slate-600 dark:text-slate-400 text-sm mb-3 font-medium">You Get</div>
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="text-4xl font-bold text-slate-900 dark:text-white">{btcAmount}</div>
-                        <div className="px-4 py-2 bg-gradient-to-r from-orange-500 to-yellow-500 rounded-xl text-white font-semibold shadow-lg">
+                    <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-orange-200 dark:border-orange-700 hover:border-orange-400 dark:hover:border-orange-500 transition-all duration-300">
+                      <div className="text-slate-600 dark:text-slate-400 text-xs sm:text-sm mb-2 sm:mb-3 font-medium">You Get</div>
+                      <div className="flex items-center justify-between gap-3 sm:gap-4">
+                        <div className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 dark:text-white">{btcAmount}</div>
+                        <div className="px-3 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-orange-500 to-yellow-500 rounded-lg sm:rounded-xl text-white text-sm sm:text-base font-semibold shadow-lg">
                           BTC
                         </div>
                       </div>
@@ -134,13 +134,13 @@ const HeroSection = () => {
                   </div>
 
                   {/* Details */}
-                  <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+                  <div className="space-y-2 sm:space-y-3 pt-3 sm:pt-4 border-t border-slate-200 dark:border-slate-700">
                     {[
                       { label: 'Live Exchange Rate', value: '1 BTC = $40,650' },
                       { label: 'Estimated Fee', value: '$2.50' },
                       { label: 'Example Provider', value: 'Onramp Money', highlight: true }
                     ].map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between text-sm hover:bg-slate-50 dark:hover:bg-slate-900/50 p-2 rounded-lg transition-colors duration-200">
+                      <div key={idx} className="flex items-center justify-between text-xs sm:text-sm hover:bg-slate-50 dark:hover:bg-slate-900/50 p-2 rounded-lg transition-colors duration-200">
                         <span className="text-slate-600 dark:text-slate-400">{item.label}</span>
                         <span className={`font-semibold ${item.highlight ? 'text-blue-500' : 'text-slate-900 dark:text-white'}`}>
                           {item.value}
@@ -149,7 +149,7 @@ const HeroSection = () => {
                     ))}
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="space-y-2 sm:space-y-3">
                     <Link to="/login" className='w-full block'>
                         <Button fullWidth size="lg">
                             Login to Get Started

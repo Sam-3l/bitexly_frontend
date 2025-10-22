@@ -8,23 +8,23 @@ export default function Dashboard() {
   usePageTitle("Dashboard");
 
   return (
-    <div className="relative min-h-screen bg-gray-900 overflow-x-hidden">
+    <div className="relative min-h-screen bg-slate-50 dark:bg-gray-900 overflow-x-hidden transition-colors duration-300">
 
       {/* Blurred animated background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         {/* Desktop/Tablet backgrounds */}
         <motion.div
-          className="absolute w-[800px] h-[800px] sm:w-[600px] sm:h-[600px] md:w-[700px] md:h-[700px] lg:w-[800px] lg:h-[800px] bg-purple-700/30 rounded-full top-[-200px] sm:top-[-150px] left-[-200px] sm:left-[-150px] filter blur-3xl"
+          className="absolute w-[800px] h-[800px] sm:w-[600px] sm:h-[600px] md:w-[700px] md:h-[700px] lg:w-[800px] lg:h-[800px] bg-purple-500/20 dark:bg-purple-700/30 rounded-full top-[-200px] sm:top-[-150px] left-[-200px] sm:left-[-150px] filter blur-3xl"
           animate={{ x: [0, 200, 0], y: [0, 150, 0], scale: [1, 1.2, 1] }}
           transition={{ repeat: Infinity, duration: 25, ease: "easeInOut" }}
         />
         <motion.div
-          className="absolute w-[600px] h-[600px] sm:w-[500px] sm:h-[500px] md:w-[550px] md:h-[550px] lg:w-[600px] lg:h-[600px] bg-pink-500/20 rounded-full bottom-[-150px] sm:bottom-[-100px] right-[-150px] sm:right-[-100px] filter blur-3xl"
+          className="absolute w-[600px] h-[600px] sm:w-[500px] sm:h-[500px] md:w-[550px] md:h-[550px] lg:w-[600px] lg:h-[600px] bg-pink-400/15 dark:bg-pink-500/20 rounded-full bottom-[-150px] sm:bottom-[-100px] right-[-150px] sm:right-[-100px] filter blur-3xl"
           animate={{ x: [0, -150, 0], y: [0, -100, 0], scale: [1, 1.1, 1] }}
           transition={{ repeat: Infinity, duration: 30, ease: "easeInOut" }}
         />
         <motion.div
-          className="absolute w-[700px] h-[700px] sm:w-[550px] sm:h-[550px] md:w-[600px] md:h-[600px] lg:w-[700px] lg:h-[700px] bg-indigo-500/20 rounded-full top-[200px] sm:top-[150px] right-[-150px] sm:right-[-100px] filter blur-3xl"
+          className="absolute w-[700px] h-[700px] sm:w-[550px] sm:h-[550px] md:w-[600px] md:h-[600px] lg:w-[700px] lg:h-[700px] bg-indigo-400/15 dark:bg-indigo-500/20 rounded-full top-[200px] sm:top-[150px] right-[-150px] sm:right-[-100px] filter blur-3xl"
           animate={{ y: [0, 100, 0], x: [0, -50, 0], scale: [1, 1.05, 1] }}
           transition={{ repeat: Infinity, duration: 35, ease: "easeInOut" }}
         />

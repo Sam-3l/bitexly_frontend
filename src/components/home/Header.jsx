@@ -122,7 +122,9 @@ const Header = () => {
                   </a>
                 ))}
                 <div className="pt-4">
+                <Link to="/register">
                   <Button fullWidth size="md">Get Started</Button>
+                </Link>
                 </div>
               </nav>
             </div>
