@@ -417,7 +417,6 @@ export default function SwapFlow() {
 
   const { theme } = useContext(ThemeContext);
 
-  // Replace the entire return statement with this (PART 1 - Steps 1 & 2):
   return (
     <>
       {/* Progress Indicator */}
@@ -691,47 +690,74 @@ export default function SwapFlow() {
         <div className="space-y-6">
           {!transactionResult && !transactionError && (
             <>
-              <button onClick={goBack} className="flex items-center text-sm text-gray-400 hover:text-white transition">
+              <button 
+                onClick={goBack} 
+                className={`flex items-center text-sm transition ${
+                  theme === "dark" 
+                    ? "text-gray-400 hover:text-white" 
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
                 <ChevronLeft className="w-4 h-4" /> Back
               </button>
 
               <div className="text-center">
-                <h3 className="text-xl font-bold text-white mb-2">Confirm Your Swap</h3>
-                <p className="text-sm text-gray-400">Please review the details before proceeding</p>
+                <h3 className={`text-xl font-bold mb-2 ${
+                  theme === "dark" ? "text-white" : "text-gray-900"
+                }`}>Confirm Your Swap</h3>
+                <p className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+                  Please review the details before proceeding
+                </p>
               </div>
 
-              <div className="bg-gray-800/60 rounded-xl p-5 space-y-4">
-                <div className="flex items-center justify-between pb-4 border-b border-white/10">
+              <div className={`rounded-xl p-5 space-y-4 ${
+                theme === "dark" ? "bg-gray-800/60" : "bg-gray-100"
+              }`}>
+                <div className={`flex items-center justify-between pb-4 border-b ${
+                  theme === "dark" ? "border-white/10" : "border-gray-300"
+                }`}>
                   <div className="text-center flex-1">
-                    <p className="text-xs text-gray-400 mb-1">You Send</p>
-                    <p className="text-2xl font-bold text-white">{formatNumber(Number(fromAmount), 8)}</p>
-                    <p className="text-sm text-gray-400">{fromCoin}</p>
+                    <p className={`text-xs mb-1 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>You Send</p>
+                    <p className={`text-2xl font-bold ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
+                      {formatNumber(Number(fromAmount), 8)}
+                    </p>
+                    <p className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>{fromCoin}</p>
                   </div>
-                  <ArrowDownUp className="w-6 h-6 text-indigo-400 mx-4" />
+                  <ArrowDownUp className={`w-6 h-6 mx-4 ${
+                    theme === "dark" ? "text-indigo-400" : "text-indigo-600"
+                  }`} />
                   <div className="text-center flex-1">
-                    <p className="text-xs text-gray-400 mb-1">You Get</p>
-                    <p className="text-2xl font-bold text-white">{formatNumber(Number(toAmount), 8)}</p>
-                    <p className="text-sm text-gray-400">{toCoin}</p>
+                    <p className={`text-xs mb-1 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>You Get</p>
+                    <p className={`text-2xl font-bold ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
+                      {formatNumber(Number(toAmount), 8)}
+                    </p>
+                    <p className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>{toCoin}</p>
                   </div>
                 </div>
 
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-400">Recipient Address</span>
-                    <span className="text-white font-mono text-xs break-all max-w-[60%] text-right">
+                    <span className={theme === "dark" ? "text-gray-400" : "text-gray-600"}>Recipient Address</span>
+                    <span className={`font-mono text-xs break-all max-w-[60%] text-right ${
+                      theme === "dark" ? "text-white" : "text-gray-900"
+                    }`}>
                       {walletAddress.slice(0, 12)}...{walletAddress.slice(-8)}
                     </span>
                   </div>
                   {rateInfo && (
                     <>
                       <div className="flex justify-between">
-                        <span className="text-gray-400">Exchange Rate</span>
-                        <span className="text-white">1 {fromCoin} ≈ {formatNumber(rateInfo.rate, 6)} {toCoin}</span>
+                        <span className={theme === "dark" ? "text-gray-400" : "text-gray-600"}>Exchange Rate</span>
+                        <span className={theme === "dark" ? "text-white" : "text-gray-900"}>
+                          1 {fromCoin} ≈ {formatNumber(rateInfo.rate, 6)} {toCoin}
+                        </span>
                       </div>
                       {rateInfo.networkFee && (
                         <div className="flex justify-between">
-                          <span className="text-gray-400">Network Fee</span>
-                          <span className="text-white">{formatNumber(Number(rateInfo.networkFee), 8)} {fromCoin}</span>
+                          <span className={theme === "dark" ? "text-gray-400" : "text-gray-600"}>Network Fee</span>
+                          <span className={theme === "dark" ? "text-white" : "text-gray-900"}>
+                            {formatNumber(Number(rateInfo.networkFee), 8)} {fromCoin}
+                          </span>
                         </div>
                       )}
                     </>
@@ -739,8 +765,12 @@ export default function SwapFlow() {
                 </div>
               </div>
 
-              <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
-                <p className="text-xs text-blue-200">
+              <div className={`border rounded-xl p-3 ${
+                theme === "dark" 
+                  ? "bg-blue-500/10 border-blue-500/20" 
+                  : "bg-blue-50 border-blue-300"
+              }`}>
+                <p className={`text-xs ${theme === "dark" ? "text-blue-200" : "text-blue-800"}`}>
                   💡 After confirming, you'll receive a deposit address. Send your {fromCoin} to complete the swap.
                 </p>
               </div>
@@ -750,8 +780,12 @@ export default function SwapFlow() {
                 disabled={creatingTransaction}
                 className={`w-full py-3 text-white font-semibold rounded-2xl transition-all shadow-lg ${
                   creatingTransaction
-                    ? "bg-gray-700 cursor-not-allowed opacity-60"
-                    : "bg-indigo-600 hover:bg-indigo-700"
+                    ? theme === "dark" 
+                      ? "bg-gray-700 cursor-not-allowed opacity-60" 
+                      : "bg-gray-400 cursor-not-allowed opacity-60"
+                    : theme === "dark" 
+                      ? "bg-indigo-600 hover:bg-indigo-700" 
+                      : "bg-indigo-500 hover:bg-indigo-600"
                 }`}
               >
                 {creatingTransaction ? (
@@ -769,18 +803,34 @@ export default function SwapFlow() {
           {transactionResult && !transactionError && (
             <div className="space-y-6">
               <div className="text-center">
-                <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/50">
+                <div className={`w-20 h-20 bg-gradient-to-br rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg ${
+                  theme === "dark" 
+                    ? "from-indigo-500 to-indigo-600 shadow-indigo-500/50" 
+                    : "from-indigo-400 to-indigo-500 shadow-indigo-400/50"
+                }`}>
                   <Clock className="w-10 h-10 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-white mb-2">Send Your {fromCoin}</h3>
-                <p className="text-sm text-gray-400">Transfer funds to the address below to complete your swap</p>
+                <h3 className={`text-2xl font-bold mb-2 ${
+                  theme === "dark" ? "text-white" : "text-gray-900"
+                }`}>Send Your {fromCoin}</h3>
+                <p className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+                  Transfer funds to the address below to complete your swap
+                </p>
               </div>
 
-              <div className="bg-gray-800/60 rounded-xl p-5 space-y-4">
+              <div className={`rounded-xl p-5 space-y-4 ${
+                theme === "dark" ? "bg-gray-800/60" : "bg-gray-100"
+              }`}>
                 <div>
-                  <p className="text-xs text-gray-400 mb-2">Transaction ID</p>
-                  <div className="bg-gray-900/50 p-3 rounded-lg">
-                    <p className="text-sm text-white font-mono break-all">
+                  <p className={`text-xs mb-2 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+                    Transaction ID
+                  </p>
+                  <div className={`p-3 rounded-lg ${
+                    theme === "dark" ? "bg-gray-900/50" : "bg-white"
+                  }`}>
+                    <p className={`text-sm font-mono break-all ${
+                      theme === "dark" ? "text-white" : "text-gray-900"
+                    }`}>
                       {transactionResult.id || transactionResult.transactionId}
                     </p>
                   </div>
@@ -788,17 +838,29 @@ export default function SwapFlow() {
 
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs text-gray-400">Deposit Address ({fromCoin})</p>
+                    <p className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+                      Deposit Address ({fromCoin})
+                    </p>
                     <button
                       onClick={() => copyToClipboard(transactionResult.payinAddress || transactionResult.depositAddress)}
-                      className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition"
+                      className={`flex items-center gap-1 text-xs transition ${
+                        theme === "dark" 
+                          ? "text-indigo-400 hover:text-indigo-300" 
+                          : "text-indigo-600 hover:text-indigo-700"
+                      }`}
                     >
                       <Copy className="w-3 h-3" />
                       {copiedAddress ? "Copied!" : "Copy"}
                     </button>
                   </div>
-                  <div className="bg-gray-900/50 p-3 rounded-lg border-2 border-indigo-500/30">
-                    <p className="text-sm text-white font-mono break-all">
+                  <div className={`p-3 rounded-lg border-2 ${
+                    theme === "dark" 
+                      ? "bg-gray-900/50 border-indigo-500/30" 
+                      : "bg-white border-indigo-300"
+                  }`}>
+                    <p className={`text-sm font-mono break-all ${
+                      theme === "dark" ? "text-white" : "text-gray-900"
+                    }`}>
                       {transactionResult.payinAddress || transactionResult.depositAddress}
                     </p>
                   </div>
@@ -806,28 +868,54 @@ export default function SwapFlow() {
 
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="text-gray-400 mb-1">Amount to Send</p>
-                    <p className="text-white font-semibold">{formatNumber(Number(fromAmount), 8)} {fromCoin}</p>
+                    <p className={`mb-1 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+                      Amount to Send
+                    </p>
+                    <p className={`font-semibold ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
+                      {formatNumber(Number(fromAmount), 8)} {fromCoin}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-gray-400 mb-1">You Will Receive</p>
-                    <p className="text-white font-semibold">{formatNumber(Number(toAmount), 8)} {toCoin}</p>
+                    <p className={`mb-1 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+                      You Will Receive
+                    </p>
+                    <p className={`font-semibold ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
+                      {formatNumber(Number(toAmount), 8)} {toCoin}
+                    </p>
                   </div>
                 </div>
 
                 {transactionResult.payinExtraId && (
                   <div>
-                    <p className="text-xs text-gray-400 mb-2">Extra ID / Memo (Required)</p>
-                    <div className="bg-gray-900/50 p-3 rounded-lg border border-yellow-500/30">
-                      <p className="text-sm text-white font-mono">{transactionResult.payinExtraId}</p>
+                    <p className={`text-xs mb-2 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+                      Extra ID / Memo (Required)
+                    </p>
+                    <div className={`p-3 rounded-lg border ${
+                      theme === "dark" 
+                        ? "bg-gray-900/50 border-yellow-500/30" 
+                        : "bg-white border-yellow-400"
+                    }`}>
+                      <p className={`text-sm font-mono ${
+                        theme === "dark" ? "text-white" : "text-gray-900"
+                      }`}>
+                        {transactionResult.payinExtraId}
+                      </p>
                     </div>
                   </div>
                 )}
               </div>
 
-              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3">
-                <p className="text-xs text-yellow-200 mb-2 font-semibold">⚠️ Important Instructions:</p>
-                <ul className="text-xs text-yellow-200 space-y-1 list-disc list-inside">
+              <div className={`border rounded-xl p-3 ${
+                theme === "dark" 
+                  ? "bg-yellow-500/10 border-yellow-500/20" 
+                  : "bg-yellow-50 border-yellow-300"
+              }`}>
+                <p className={`text-xs mb-2 font-semibold ${
+                  theme === "dark" ? "text-yellow-200" : "text-yellow-800"
+                }`}>⚠️ Important Instructions:</p>
+                <ul className={`text-xs space-y-1 list-disc list-inside ${
+                  theme === "dark" ? "text-yellow-200" : "text-yellow-800"
+                }`}>
                   <li>Send exactly {formatNumber(Number(fromAmount), 8)} {fromCoin} to the deposit address above</li>
                   <li>Sending a different amount may result in delays or loss of funds</li>
                   {transactionResult.payinExtraId && (
@@ -838,8 +926,14 @@ export default function SwapFlow() {
               </div>
 
               {statusError && (
-                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3">
-                  <p className="text-xs text-red-400">{statusError}</p>
+                <div className={`border rounded-xl p-3 ${
+                  theme === "dark" 
+                    ? "bg-red-500/10 border-red-500/20" 
+                    : "bg-red-50 border-red-300"
+                }`}>
+                  <p className={`text-xs ${theme === "dark" ? "text-red-400" : "text-red-700"}`}>
+                    {statusError}
+                  </p>
                 </div>
               )}
 
@@ -848,8 +942,12 @@ export default function SwapFlow() {
                 disabled={confirmingTransaction}
                 className={`w-full py-3 text-white font-semibold rounded-2xl transition-all shadow-lg ${
                   confirmingTransaction
-                    ? "bg-gray-700 cursor-not-allowed opacity-60"
-                    : "bg-green-600 hover:bg-green-700"
+                    ? theme === "dark" 
+                      ? "bg-gray-700 cursor-not-allowed opacity-60" 
+                      : "bg-gray-400 cursor-not-allowed opacity-60"
+                    : theme === "dark" 
+                      ? "bg-green-600 hover:bg-green-700" 
+                      : "bg-green-500 hover:bg-green-600"
                 }`}
               >
                 {confirmingTransaction ? (
@@ -867,7 +965,11 @@ export default function SwapFlow() {
 
               <button
                 onClick={goBack}
-                className="w-full py-3 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-2xl transition-colors"
+                className={`w-full py-3 font-semibold rounded-2xl transition-colors ${
+                  theme === "dark" 
+                    ? "bg-gray-700 hover:bg-gray-600 text-white" 
+                    : "bg-gray-300 hover:bg-gray-400 text-gray-900"
+                }`}
               >
                 Go Back
               </button>
@@ -878,24 +980,38 @@ export default function SwapFlow() {
           {transactionError && (
             <div className="space-y-6">
               <div className="text-center">
-                <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${
+                  theme === "dark" ? "bg-red-600" : "bg-red-500"
+                }`}>
                   <AlertCircle className="w-8 h-8 text-white" />
                 </div>
-                <h3 className="text-xl font-bold text-white mb-2">Transaction Failed</h3>
-                <p className="text-sm text-red-400">{transactionError}</p>
+                <h3 className={`text-xl font-bold mb-2 ${
+                  theme === "dark" ? "text-white" : "text-gray-900"
+                }`}>Transaction Failed</h3>
+                <p className={`text-sm ${theme === "dark" ? "text-red-400" : "text-red-600"}`}>
+                  {transactionError}
+                </p>
               </div>
 
               <div className="flex gap-3">
                 <button
                   onClick={goBack}
-                  className="flex-1 py-3 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-2xl transition-colors"
+                  className={`flex-1 py-3 font-semibold rounded-2xl transition-colors ${
+                    theme === "dark" 
+                      ? "bg-gray-700 hover:bg-gray-600 text-white" 
+                      : "bg-gray-300 hover:bg-gray-400 text-gray-900"
+                  }`}
                 >
                   Go Back
                 </button>
                 <button
                   onClick={handleCreateTransaction}
                   disabled={creatingTransaction}
-                  className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-2xl transition-colors flex items-center justify-center gap-2"
+                  className={`flex-1 py-3 text-white font-semibold rounded-2xl transition-colors flex items-center justify-center gap-2 ${
+                    theme === "dark" 
+                      ? "bg-indigo-600 hover:bg-indigo-700" 
+                      : "bg-indigo-500 hover:bg-indigo-600"
+                  }`}
                 >
                   <RefreshCw className="w-4 h-4" /> Try Again
                 </button>
@@ -909,21 +1025,37 @@ export default function SwapFlow() {
       {currentStep === 4 && (
         <div className="space-y-6">
           <div className="text-center">
-            <div className="w-20 h-20 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-green-500/50">
+            <div className={`w-20 h-20 bg-gradient-to-br rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg ${
+              theme === "dark" 
+                ? "from-green-500 to-green-600 shadow-green-500/50" 
+                : "from-green-400 to-green-500 shadow-green-400/50"
+            }`}>
               <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h3 className="text-2xl font-bold text-white mb-2">Swap Complete!</h3>
-            <p className="text-sm text-gray-400">Your transaction has been successfully processed</p>
+            <h3 className={`text-2xl font-bold mb-2 ${
+              theme === "dark" ? "text-white" : "text-gray-900"
+            }`}>Swap Complete!</h3>
+            <p className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+              Your transaction has been successfully processed
+            </p>
           </div>
 
           {transactionStatus && (
-            <div className="bg-gray-800/60 rounded-xl p-5 space-y-4">
+            <div className={`rounded-xl p-5 space-y-4 ${
+              theme === "dark" ? "bg-gray-800/60" : "bg-gray-100"
+            }`}>
               <div>
-                <p className="text-xs text-gray-400 mb-2">Transaction Status</p>
-                <div className="bg-gray-900/50 p-3 rounded-lg">
-                  <p className="text-sm text-green-400 font-semibold capitalize">
+                <p className={`text-xs mb-2 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+                  Transaction Status
+                </p>
+                <div className={`p-3 rounded-lg ${
+                  theme === "dark" ? "bg-gray-900/50" : "bg-white"
+                }`}>
+                  <p className={`text-sm font-semibold capitalize ${
+                    theme === "dark" ? "text-green-400" : "text-green-600"
+                  }`}>
                     {transactionStatus.status || 'Completed'}
                   </p>
                 </div>
@@ -931,23 +1063,39 @@ export default function SwapFlow() {
 
               {transactionStatus.payoutHash && (
                 <div>
-                  <p className="text-xs text-gray-400 mb-2">Payout Transaction Hash</p>
-                  <div className="bg-gray-900/50 p-3 rounded-lg">
-                    <p className="text-sm text-white font-mono break-all">
+                  <p className={`text-xs mb-2 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+                    Payout Transaction Hash
+                  </p>
+                  <div className={`p-3 rounded-lg ${
+                    theme === "dark" ? "bg-gray-900/50" : "bg-white"
+                  }`}>
+                    <p className={`text-sm font-mono break-all ${
+                      theme === "dark" ? "text-white" : "text-gray-900"
+                    }`}>
                       {transactionStatus.payoutHash}
                     </p>
                   </div>
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4 text-sm pt-4 border-t border-white/10">
+              <div className={`grid grid-cols-2 gap-4 text-sm pt-4 border-t ${
+                theme === "dark" ? "border-white/10" : "border-gray-300"
+              }`}>
                 <div>
-                  <p className="text-gray-400 mb-1">You Sent</p>
-                  <p className="text-white font-semibold">{formatNumber(Number(fromAmount), 8)} {fromCoin}</p>
+                  <p className={`mb-1 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+                    You Sent
+                  </p>
+                  <p className={`font-semibold ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
+                    {formatNumber(Number(fromAmount), 8)} {fromCoin}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-gray-400 mb-1">You Received</p>
-                  <p className="text-white font-semibold">{formatNumber(Number(toAmount), 8)} {toCoin}</p>
+                  <p className={`mb-1 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+                    You Received
+                  </p>
+                  <p className={`font-semibold ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
+                    {formatNumber(Number(toAmount), 8)} {toCoin}
+                  </p>
                 </div>
               </div>
 
@@ -956,7 +1104,11 @@ export default function SwapFlow() {
                   href={transactionStatus.payoutHashLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block text-center text-sm text-indigo-400 hover:text-indigo-300 transition"
+                  className={`block text-center text-sm transition ${
+                    theme === "dark" 
+                      ? "text-indigo-400 hover:text-indigo-300" 
+                      : "text-indigo-600 hover:text-indigo-700"
+                  }`}
                 >
                   View on Block Explorer →
                 </a>
@@ -964,15 +1116,23 @@ export default function SwapFlow() {
             </div>
           )}
 
-          <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3">
-            <p className="text-xs text-green-200">
+          <div className={`border rounded-xl p-3 ${
+            theme === "dark" 
+              ? "bg-green-500/10 border-green-500/20" 
+              : "bg-green-50 border-green-300"
+          }`}>
+            <p className={`text-xs ${theme === "dark" ? "text-green-200" : "text-green-800"}`}>
               ✅ Your {toCoin} has been sent to your wallet address. It may take a few minutes to appear in your wallet depending on network confirmation times.
             </p>
           </div>
 
           <button
             onClick={resetFlow}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-2xl transition-colors"
+            className={`w-full py-3 text-white font-semibold rounded-2xl transition-colors ${
+              theme === "dark" 
+                ? "bg-indigo-600 hover:bg-indigo-700" 
+                : "bg-indigo-500 hover:bg-indigo-600"
+            }`}
           >
             Start New Swap
           </button>
