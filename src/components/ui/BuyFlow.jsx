@@ -328,27 +328,27 @@ export default function BuyFlow() {
     
     setCreatingSession(true);
     try {
-      // Get user from localStorage (matches your AuthContext structure)
       const storedUser = localStorage.getItem("bitexly_user");
-      
-      if (!storedUser) {
-        alert("User session not found. Please log in again.");
-        return;
+      let customerId;
+
+      if (storedUser) {
+        const userData = JSON.parse(storedUser);
+        const user_details = userData.user_details || {};
+        customerId = user_details.id || user_details.email || user_details.username;
       }
-  
-      const userData = JSON.parse(storedUser);
-      const user_details = userData.user_details || {};
-      
-      // Extract customerId - your user object has the data directly
-      const customerId = user_details.id || user_details.email || user_details.username;
-  
+
+      // Fallback for guests: generate or reuse a guest ID
       if (!customerId) {
-        console.error("User data:", userData);
-        alert("Unable to identify user. Please log in again.");
-        return;
+        let guestId = localStorage.getItem("guest_customer_id");
+        if (!guestId) {
+          // Generate a unique temporary ID
+          guestId = `guest-${crypto.randomUUID()}`;
+          localStorage.setItem("guest_customer_id", guestId);
+        }
+        customerId = guestId;
       }
-  
-      console.log("✅ User identified:", customerId);
+
+      console.log("✅ Customer ID:", customerId);
 
       const providerName = (selectedProvider.serviceProvider || selectedProvider.provider || '').toUpperCase();
       let url;
