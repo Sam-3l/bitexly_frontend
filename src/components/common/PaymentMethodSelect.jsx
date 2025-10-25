@@ -1,48 +1,7 @@
-import { useState, useRef, useEffect } from "react";
-import {
-  ChevronDown,
-  Check,
-  Loader2,
-  CreditCard,
-  Building2,
-  Smartphone,
-  Wallet,
-} from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-
-// Icon mapping for payment methods
-const paymentIcons = {
-  CARD: CreditCard,
-  CREDIT_CARD: CreditCard,
-  DEBIT_CARD: CreditCard,
-  BANK_TRANSFER: Building2,
-  BANK_ACCOUNT: Building2,
-  ACH: Building2,
-  SEPA: Building2,
-  APPLE_PAY: Smartphone,
-  GOOGLE_PAY: Smartphone,
-  WALLET: Wallet,
-  MOBILE_MONEY: Smartphone,
-  PIX: Smartphone,
-  DEFAULT: Wallet,
-};
-
-const getPaymentIcon = (type) => {
-  if (!type) return paymentIcons.DEFAULT;
-
-  const upperType = type.toUpperCase();
-
-  if (paymentIcons[upperType]) return paymentIcons[upperType];
-
-  if (upperType.includes("CARD")) return CreditCard;
-  if (upperType.includes("BANK") || upperType.includes("ACH") || upperType.includes("SEPA"))
-    return Building2;
-  if (upperType.includes("APPLE") || upperType.includes("GOOGLE") || upperType.includes("MOBILE"))
-    return Smartphone;
-  if (upperType.includes("WALLET")) return Wallet;
-
-  return paymentIcons.DEFAULT;
-};
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { ChevronDown, Check, Loader2, X, Wallet } from "lucide-react";
+import { useTheme } from "../../context/ThemeContext";
 
 export default function PaymentMethodSelect({
   availableMethods,
@@ -51,18 +10,7 @@ export default function PaymentMethodSelect({
   loadingMethods,
 }) {
   const [open, setOpen] = useState(false);
-  const dropdownRef = useRef(null);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  const { isDark } = useTheme();
 
   // Auto-select first method when methods load
   useEffect(() => {
@@ -70,6 +18,12 @@ export default function PaymentMethodSelect({
       setSelectedMethod(availableMethods[0]);
     }
   }, [availableMethods, selectedMethod, setSelectedMethod]);
+
+  useEffect(() => {
+    if (open) document.body.style.overflow = "hidden";
+    else document.body.style.overflow = "unset";
+    return () => (document.body.style.overflow = "unset");
+  }, [open]);
 
   const handleSelect = (method) => {
     setSelectedMethod(method);
@@ -80,113 +34,167 @@ export default function PaymentMethodSelect({
     return method.name || method.type || method.paymentMethod || "Payment Method";
   };
 
-  const getMethodType = (method) => {
-    return method.type || method.paymentMethod || method.methodType || "DEFAULT";
+  // Get logo based on current theme
+  const getMethodLogo = (method) => {
+    if (!method.logos) return null;
+    return isDark ? method.logos.dark : method.logos.light;
   };
 
   const currentMethodName = selectedMethod ? getMethodName(selectedMethod) : null;
-  const CurrentIcon = selectedMethod
-    ? getPaymentIcon(getMethodType(selectedMethod))
-    : Wallet;
+  const currentMethodLogo = selectedMethod ? getMethodLogo(selectedMethod) : null;
+
+  const modalContent = open ? (
+    <div
+      className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-sm flex items-start justify-center p-4 sm:p-6"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          setOpen(false);
+        }
+      }}
+    >
+      <div className="relative w-full max-w-md bg-white dark:bg-[#1f2023] rounded-2xl shadow-2xl flex flex-col mt-16 sm:mt-20 max-h-[90vh] sm:max-h-[600px]">
+        <div className="flex items-center justify-between p-4 border-b border-gray-300 dark:border-gray-700 flex-shrink-0">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+            Select Payment Method
+          </h2>
+          <button
+            onClick={() => setOpen(false)}
+            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
+          >
+            <X className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1">
+          {!availableMethods || availableMethods.length === 0 ? (
+            <div className="p-8 text-gray-500 dark:text-gray-400 text-center">
+              No payment methods available
+            </div>
+          ) : (
+            availableMethods.map((method, idx) => {
+              const name = getMethodName(method);
+              const logo = getMethodLogo(method);
+              const isSelected = currentMethodName === name;
+              const fee =
+                method.fee !== undefined && method.fee !== null
+                  ? typeof method.fee === "number"
+                    ? `${method.fee}%`
+                    : method.fee
+                  : method.feePercentage
+                  ? `${method.feePercentage}%`
+                  : null;
+
+              return (
+                <button
+                  key={idx}
+                  onClick={() => handleSelect(method)}
+                  className={`flex items-center justify-between w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-[#2a2b2f] transition ${
+                    isSelected
+                      ? "bg-gray-100 dark:bg-[#2a2b2f] text-blue-600 dark:text-blue-400"
+                      : "text-gray-800 dark:text-gray-200"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    {logo ? (
+                      <img
+                        src={logo}
+                        alt={name}
+                        className="w-8 h-8 rounded-lg object-contain"
+                        onError={(e) => {
+                          e.target.style.display = "none";
+                        }}
+                      />
+                    ) : (
+                      <Wallet className="w-6 h-6 text-gray-400" />
+                    )}
+                    <div>
+                      <p className="font-medium">{name}</p>
+                      {fee && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Fee: {fee}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {isSelected && (
+                    <Check className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  )}
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   return (
-    <div className="relative z-20 w-full" ref={dropdownRef}>
-      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Payment Method</p>
+    <>
+      <div className="relative z-20 w-full">
+        <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Payment Method</p>
 
-      {/* Dropdown Trigger */}
-      <div
-        onClick={() =>
-          !loadingMethods && availableMethods?.length > 0 && setOpen((prev) => !prev)
-        }
-        className={`inline-flex items-center gap-2 px-3 py-2 rounded-md transition-all max-w-max ${
-          loadingMethods || !availableMethods || availableMethods.length === 0
-            ? "cursor-not-allowed opacity-70"
-            : "cursor-pointer hover:bg-gray-100 dark:hover:bg-white/5 active:scale-[0.98]"
-        }`}
-      >
-        {loadingMethods ? (
-          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-sm">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Loading...
-          </div>
-        ) : !availableMethods || availableMethods.length === 0 ? (
-          <span className="text-sm text-gray-600 dark:text-gray-400">
-            No methods available
-          </span>
-        ) : currentMethodName ? (
-          <>
-            <CurrentIcon className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
-            <span className="text-sm text-gray-900 dark:text-white font-medium tracking-wide">
-              {currentMethodName}
+        {/* Dropdown Trigger - Original Style */}
+        <div
+          onClick={() =>
+            !loadingMethods && availableMethods?.length > 0 && setOpen((prev) => !prev)
+          }
+          className={`inline-flex items-center gap-2 px-3 py-2 rounded-md transition-all max-w-max ${
+            loadingMethods || !availableMethods || availableMethods.length === 0
+              ? "cursor-not-allowed opacity-70"
+              : "cursor-pointer hover:bg-gray-100 dark:hover:bg-white/5 active:scale-[0.98]"
+          }`}
+        >
+          {loadingMethods ? (
+            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-sm">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading...
+            </div>
+          ) : !availableMethods || availableMethods.length === 0 ? (
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              No methods available
             </span>
-            {availableMethods.length > 1 && (
+          ) : currentMethodName ? (
+            <>
+              {currentMethodLogo ? (
+                <img
+                  src={currentMethodLogo}
+                  alt={currentMethodName}
+                  className="w-5 h-5 rounded object-contain"
+                  onError={(e) => {
+                    e.target.style.display = "none";
+                  }}
+                />
+              ) : (
+                <Wallet className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+              )}
+              <span className="text-sm text-gray-900 dark:text-white font-medium tracking-wide">
+                {currentMethodName}
+              </span>
+              {availableMethods.length > 1 && (
+                <ChevronDown
+                  className={`w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform ${
+                    open ? "rotate-180" : ""
+                  }`}
+                />
+              )}
+            </>
+          ) : (
+            <>
+              <Wallet className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+              <span className="text-sm text-gray-600 dark:text-gray-400">Select method</span>
               <ChevronDown
                 className={`w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform ${
                   open ? "rotate-180" : ""
                 }`}
               />
-            )}
-          </>
-        ) : (
-          <>
-            <Wallet className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-            <span className="text-sm text-gray-600 dark:text-gray-400">Select method</span>
-            <ChevronDown
-              className={`w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform ${
-                open ? "rotate-180" : ""
-              }`}
-            />
-          </>
-        )}
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Dropdown Menu */}
-      <AnimatePresence>
-        {open && availableMethods && availableMethods.length > 1 && (
-          <motion.div className="absolute top-full left-0 mt-2 rounded-xl shadow-xl bg-white dark:bg-gray-900/85 backdrop-blur-md border border-gray-200 dark:border-white/10 overflow-hidden min-w-[14rem] w-auto">
-            <ul className="max-h-52 overflow-y-auto">
-              {availableMethods.map((method, idx) => {
-                const name = getMethodName(method);
-                const MethodIcon = getPaymentIcon(getMethodType(method));
-                const isSelected = currentMethodName === name;
-                const fee =
-                  method.fee !== undefined && method.fee !== null
-                    ? typeof method.fee === "number"
-                      ? `${method.fee}%`
-                      : method.fee
-                    : method.feePercentage
-                    ? `${method.feePercentage}%`
-                    : null;
-
-                return (
-                  <li
-                    key={idx}
-                    onClick={() => handleSelect(method)}
-                    className={`flex items-center justify-between px-3 py-2 transition-all ${
-                      isSelected
-                        ? "bg-indigo-100 dark:bg-indigo-500/20 text-gray-900 dark:text-white"
-                        : "hover:bg-gray-100 dark:hover:bg-white/5 text-gray-800 dark:text-gray-300"
-                    } cursor-pointer`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <MethodIcon className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
-                      <div>
-                        <span className="text-sm font-medium">{name}</span>
-                        {fee && (
-                          <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                            Fee: {fee}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {isSelected && <Check className="w-4 h-4 text-indigo-400" />}
-                  </li>
-                );
-              })}
-            </ul>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+      {typeof document !== "undefined" &&
+        modalContent &&
+        createPortal(modalContent, document.body)}
+    </>
   );
 }

@@ -45,7 +45,6 @@ export default function SellFlow() {
 
   // Session modal
   const [creatingSession, setCreatingSession] = useState(false);
-  const [widgetUrl, setWidgetUrl] = useState(null);
 
   const formatNumber = (n, decimals = 8) => {
     if (n === null || n === undefined || Number.isNaN(Number(n))) return "";
@@ -95,7 +94,22 @@ export default function SellFlow() {
         
         const res = await apiClient.get("/meld/payment-methods/", { params });
         const data = res.data?.data || res.data || [];
-        setPaymentMethods(Array.isArray(data) ? data : []);
+        const allMethods = Array.isArray(data) ? data : [];
+        
+        // Filter for sell-only payment methods (payout methods)
+        const sellMethods = allMethods.filter(method => {
+          const methodName = method.paymentMethod?.toUpperCase() || '';
+          const name = method.name?.toUpperCase() || '';
+          
+          // Include only payout/withdrawal methods for selling
+          return methodName.includes('PAYOUT') || 
+                 name.includes('PAYOUT') ||
+                 methodName.includes('WITHDRAWAL') ||
+                 methodName.includes('BANK_TRANSFER') ||
+                 methodName.includes('BANK_ACCOUNT');
+        });
+        
+        setPaymentMethods(sellMethods);
       }
     } catch (err) {
       console.error("Payment methods error:", err);
@@ -346,8 +360,8 @@ export default function SellFlow() {
       if (!url) throw new Error("No widget URL returned");
       
       console.log("✅ Widget URL generated:", url);
-      setWidgetUrl(url);
-  
+      window.open(url, '_blank');
+      setCurrentStep(3);
     } catch (err) {
       console.error("❌ Session creation error:", err);
       console.error("Error response:", err.response?.data);
@@ -691,27 +705,46 @@ export default function SellFlow() {
         </div>
       )}
 
-      {/* Widget Modal */}
-      {widgetUrl && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[9999]">
-            <div className={`rounded-2xl w-[95%] md:w-[80%] h-[80vh] shadow-xl border relative ${
-              theme === "dark" 
-                ? "bg-gray-900 border-white/10" 
-                : "bg-white border-gray-300"
-            }`}>
-            <button
-                onClick={() => setWidgetUrl(null)}
-                className={`absolute top-3 right-3 rounded-full p-2 z-10 ${
-                  theme === "dark" 
-                    ? "bg-gray-800 text-gray-300 hover:text-white" 
-                    : "bg-gray-200 text-gray-700 hover:text-gray-900"
-                }`}
-            >
-                <X className="w-5 h-5" />
-            </button>
+      {/* STEP 3: Transaction In Progress */}
+      {currentStep === 3 && (
+        <div className="space-y-6 text-center py-8">
+          <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center ${
+            theme === "dark" ? "bg-indigo-600/20" : "bg-indigo-100"
+          }`}>
+            <Loader2 className={`w-10 h-10 animate-spin ${
+              theme === "dark" ? "text-indigo-400" : "text-indigo-600"
+            }`} />
+          </div>
 
-            <IframeWithFallback src={widgetUrl} fallbackUrl={widgetUrl} />
-            </div>
+          <div>
+            <h3 className={`text-xl font-bold mb-2 ${
+              theme === "dark" ? "text-white" : "text-gray-900"
+            }`}>Transaction In Progress</h3>
+            <p className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+              Complete your purchase in the opened tab
+            </p>
+          </div>
+
+          <div className={`border rounded-xl p-4 max-w-md mx-auto ${
+            theme === "dark" 
+              ? "bg-blue-500/10 border-blue-500/20" 
+              : "bg-blue-50 border-blue-300"
+          }`}>
+            <p className={`text-sm ${theme === "dark" ? "text-blue-200" : "text-blue-800"}`}>
+              💡 A new tab has been opened with your payment provider. Complete the transaction there and return here when done.
+            </p>
+          </div>
+
+          <button
+            onClick={() => setCurrentStep(1)}
+            className={`px-6 py-3 rounded-2xl font-semibold transition-colors ${
+              theme === "dark"
+                ? "bg-gray-700 text-white hover:bg-gray-600"
+                : "bg-gray-200 text-gray-900 hover:bg-gray-300"
+            }`}
+          >
+            Start New Transaction
+          </button>
         </div>
       )}
     </>

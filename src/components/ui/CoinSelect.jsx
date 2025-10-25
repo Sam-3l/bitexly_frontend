@@ -192,10 +192,10 @@ export default function CoinSelect({
         type="button"
         onClick={() => setOpen(!open)}
         disabled={!selectedCoin}
-        className="flex items-center justify-between w-auto px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-[#1b1c1f] hover:bg-gray-100 dark:hover:bg-[#232428] transition text-gray-800 dark:text-gray-200 focus:outline-none"
+        className="inline-flex items-center justify-between min-w-fit px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-[#1b1c1f] hover:bg-gray-100 dark:hover:bg-[#232428] transition text-gray-800 dark:text-gray-200 focus:outline-none"
       >
         {selectedCoin ? (
-          <div className="flex items-center gap-2 overflow-hidden">
+          <div className="flex items-center gap-2">
             {selectedCoin.logo && (
               <img
                 src={selectedCoin.logo}
@@ -203,18 +203,18 @@ export default function CoinSelect({
                 className="w-5 h-5 rounded-full flex-shrink-0"
               />
             )}
-            <span className="font-medium text-sm sm:text-base pr-[2px]">
+            <span className="font-medium text-sm whitespace-nowrap">
               {selectedCoin.symbol?.toUpperCase()}
             </span>
           </div>
         ) : (
           <div className="flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin" />
-            <span className="font-medium text-sm sm:text-base">Loading...</span>
+            <span className="font-medium text-sm whitespace-nowrap">Loading...</span>
           </div>
         )}
         <ChevronDown
-          className={`w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform flex-shrink-0 ${
+          className={`w-4 h-4 ml-2 text-gray-500 dark:text-gray-400 transition-transform flex-shrink-0 ${
             open ? "rotate-180" : ""
           }`}
         />
