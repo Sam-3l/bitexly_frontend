@@ -337,6 +337,9 @@ export default function BuyFlow() {
     }
     
     if (!selectedProvider) return;
+
+    // open the tab immediately (user gesture)
+    const newTab = window.open('', '_blank');
     
     setCreatingSession(true);
     try {
@@ -406,9 +409,12 @@ export default function BuyFlow() {
       if (!url) throw new Error("No widget URL returned");
       
       console.log("✅ Widget URL generated:", url);
-      window.open(url, '_blank');
-      // Move to step 3 to show "in progress" state
-      setCurrentStep(3);  
+      
+      // Redirect the pre-opened tab to the actual URL
+      newTab.location.href = url;
+
+      // Move to step 3
+      setCurrentStep(3);
     } catch (err) {
       console.error("❌ Session creation error:", err);
       console.error("Error response:", err.response?.data);
@@ -420,6 +426,10 @@ export default function BuyFlow() {
         || "Unable to start buy session. Please try again.";
       
       alert(errorMsg);
+
+      // Close the pre-opened tab if an error occurs
+      if (newTab) newTab.close();
+      
     } finally {
       setCreatingSession(false);
     }

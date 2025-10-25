@@ -293,6 +293,9 @@ export default function SellFlow() {
 
   const handleProceedToCheckout = async () => {
     if (!selectedProvider) return;
+
+    // open the tab immediately (user gesture)
+    const newTab = window.open('', '_blank');
   
     setCreatingSession(true);
     try {  
@@ -360,7 +363,10 @@ export default function SellFlow() {
       if (!url) throw new Error("No widget URL returned");
       
       console.log("✅ Widget URL generated:", url);
-      window.open(url, '_blank');
+      
+      // Redirect the pre-opened tab to the actual URL
+      newTab.location.href = url;
+      
       setCurrentStep(3);
     } catch (err) {
       console.error("❌ Session creation error:", err);
@@ -373,6 +379,10 @@ export default function SellFlow() {
         || "Unable to start sell session. Please try again.";
       
       alert(errorMsg);
+      
+      // Close the pre-opened tab if an error occurs
+      if (newTab) newTab.close();
+      
     } finally {
       setCreatingSession(false);
     }
