@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useContext } from "react";
+import { useState, useEffect, useCallback, useContext, useRef } from "react";
 import { ArrowDownUp, Loader2, X, ChevronLeft, Check, AlertCircle } from "lucide-react";
 import { onrampClient } from "../../utils/onrampClient";
 import { moonpayClient } from "../../utils/moonpayClient";
@@ -9,7 +9,6 @@ import CurrencySelect from "./CurrencySelect";
 import apiClient from "../../utils/apiClient";
 import ProviderSelect from "../common/ProviderSelect";
 import PaymentMethodSelect from "../common/PaymentMethodSelect";
-import IframeWithFallback from "../common/IframeWithFallback";
 
 function useDebounce(callback, delay, deps) {
   useEffect(() => {
@@ -24,6 +23,10 @@ export default function SellFlow() {
 
   const [detailedError, setDetailedError] = useState(null);
   const [providerLimits, setProviderLimits] = useState(null);
+
+  const [transactionId, setTransactionId] = useState(null);
+  const [transactionStatus, setTransactionStatus] = useState(null);
+  const pollingIntervalRef = useRef(null);
 
   // Step 1: Amount, Pair & Provider
   const [cryptoAmount, setCryptoAmount] = useState("0.01");
@@ -45,6 +48,61 @@ export default function SellFlow() {
 
   // Session modal
   const [creatingSession, setCreatingSession] = useState(false);
+
+  const pollTransactionStatus = useCallback(async (txnId, provider) => {
+    try {
+      const response = await apiClient.get('/meld/transaction-status/', {
+        params: { 
+          transactionId: txnId,
+          provider: provider
+        }
+      });
+      
+      const data = response.data;
+      if (data.success) {
+        setTransactionStatus(data.status);
+        
+        console.log(`Transaction ${txnId} status: ${data.status}`);
+        
+        // Stop polling if transaction is complete, failed, or timed out
+        if (data.status === 'COMPLETED' || data.status === 'FAILED' || data.status === 'TIMEOUT') {
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          
+          // Clear from localStorage
+          localStorage.removeItem('pending_transaction');
+        }
+      }
+    } catch (err) {
+      console.error('Status polling error:', err);
+    }
+  }, []);
+  
+  const startPolling = useCallback((txnId, provider) => {
+    // Clear any existing interval
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+    
+    // Do immediate check
+    pollTransactionStatus(txnId, provider);
+    
+    // Start polling every 5 seconds
+    const interval = setInterval(() => {
+      pollTransactionStatus(txnId, provider);
+    }, 5000);
+    
+    pollingIntervalRef.current = interval;
+  }, [pollTransactionStatus]);
+  
+  const stopPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  }, []);
 
   const formatNumber = (n, decimals = 8) => {
     if (n === null || n === undefined || Number.isNaN(Number(n))) return "";
@@ -118,10 +176,39 @@ export default function SellFlow() {
       setLoadingPaymentMethods(false);
     }
   }, [toCurrency, fromCoin, selectedProvider]);
+
+  // Check for pending transaction on component mount
+  useEffect(() => {
+    const pendingTxn = localStorage.getItem('pending_transaction');
+    if (pendingTxn) {
+      try {
+        const txnData = JSON.parse(pendingTxn);
+        const { transactionId, provider, startTime, type } = txnData;
+        
+        // Only resume if transaction was started less than 1 hour ago and is a SELL
+        if (Date.now() - startTime < 3600000 && type === 'SELL') {
+          setTransactionId(transactionId);
+          setCurrentStep(3);
+          startPolling(transactionId, provider);
+        } else {
+          localStorage.removeItem('pending_transaction');
+        }
+      } catch (err) {
+        console.error('Error resuming transaction:', err);
+        localStorage.removeItem('pending_transaction');
+      }
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      stopPolling();
+    };
+  }, []);
   
   // Trigger fetch when provider changes
   useEffect(() => {
     if (selectedProvider) {
+      setSelectedPaymentMethod(null);
       fetchPaymentMethods();
     }
   }, [selectedProvider, fetchPaymentMethods]);
@@ -293,53 +380,74 @@ export default function SellFlow() {
 
   const handleProceedToCheckout = async () => {
     if (!selectedProvider) return;
-
-    // open the tab immediately (user gesture)
-    const newTab = window.open('', '_blank');
   
+    // Open tab immediately (must be in user gesture context)
+    const newTab = window.open('', '_blank');
+    
     setCreatingSession(true);
-    try {  
+    try {
+      // Get or create customer ID
       const storedUser = localStorage.getItem("bitexly_user");
       let customerId;
-
+  
       if (storedUser) {
         const userData = JSON.parse(storedUser);
         const user_details = userData.user_details || {};
         customerId = user_details.id || user_details.email || user_details.username;
       }
-
-      // 🧩 Fallback for guests: generate or reuse a guest ID
+  
+      // Fallback for guests
       if (!customerId) {
         let guestId = localStorage.getItem("guest_customer_id");
         if (!guestId) {
-          // Generate a unique temporary ID
           guestId = `guest-${crypto.randomUUID()}`;
           localStorage.setItem("guest_customer_id", guestId);
         }
         customerId = guestId;
       }
-
+  
       console.log("✅ Customer ID:", customerId);
-
+  
       const providerName = (selectedProvider.serviceProvider || selectedProvider.provider || '').toUpperCase();
-      let url;
+      let url, txnId;
   
       if (providerName === 'ONRAMP') {
-        url = await onrampClient.generateSellUrl({
-          sourceCurrency: fromCoin,
-          destinationCurrency: toCurrency,
+        // OnRamp SELL flow
+        const payload = {
+          action: "SELL",
+          sourceCurrencyCode: fromCoin,
+          destinationCurrencyCode: toCurrency,
           sourceAmount: Number(cryptoAmount),
-        });
+        };
+  
+        console.log('OnRamp Sell Request:', payload);
+  
+        const res = await apiClient.post("/onramp/generate-url/", payload);
+        const data = res.data;
+        
+        url = data.widgetUrl || data.paymentUrl || data.data?.link;
+        txnId = data.transactionId || data.data?.transactionId;
   
       } else if (providerName === 'MOONPAY') {
-        url = await moonpayClient.generateSellUrl({
-          sourceCurrency: fromCoin,
-          destinationCurrency: toCurrency,
+        // MoonPay SELL flow
+        const payload = {
+          action: "SELL",
+          sourceCurrencyCode: fromCoin,
+          destinationCurrencyCode: toCurrency,
           sourceAmount: Number(cryptoAmount),
-        });
+          externalCustomerId: customerId,
+        };
+  
+        console.log('MoonPay Sell Request:', payload);
+  
+        const res = await apiClient.post("/moonpay/generate-url/", payload);
+        const data = res.data;
+        
+        url = data.widgetUrl || data.paymentUrl;
+        txnId = data.transactionId || data.data?.transactionId;
   
       } else {
-        // Meld provider
+        // Meld SELL flow
         const payload = {
           sessionData: {
             countryCode: toCurrency === "NGN" ? "NG" : toCurrency === "USD" ? "US" : toCurrency.slice(0, 2),
@@ -357,17 +465,39 @@ export default function SellFlow() {
   
         const res = await apiClient.post("/meld/session-widget/", payload);
         const data = res.data;
+        
         url = data.widgetUrl || data.data?.widgetUrl;
+        txnId = data.transactionId || data.data?.transactionId;
       }
   
       if (!url) throw new Error("No widget URL returned");
       
       console.log("✅ Widget URL generated:", url);
+      console.log("✅ Transaction ID:", txnId);
+      
+      // Store transaction data in localStorage
+      const transactionData = {
+        transactionId: txnId,
+        customerId,
+        provider: providerName,
+        startTime: Date.now(),
+        type: 'SELL',
+        amount: cryptoAmount,
+        fromCurrency: fromCoin,
+        toCurrency: toCurrency
+      };
+      localStorage.setItem('pending_transaction', JSON.stringify(transactionData));
+      
+      // Set transaction ID and start polling
+      setTransactionId(txnId);
+      startPolling(txnId, providerName);
       
       // Redirect the pre-opened tab to the actual URL
       newTab.location.href = url;
       
+      // Move to step 3
       setCurrentStep(3);
+      
     } catch (err) {
       console.error("❌ Session creation error:", err);
       console.error("Error response:", err.response?.data);
@@ -719,34 +849,105 @@ export default function SellFlow() {
       {currentStep === 3 && (
         <div className="space-y-6 text-center py-8">
           <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center ${
-            theme === "dark" ? "bg-indigo-600/20" : "bg-indigo-100"
+            transactionStatus === 'COMPLETED'
+              ? theme === "dark" ? "bg-green-600/20" : "bg-green-100"
+              : transactionStatus === 'FAILED' || transactionStatus === 'TIMEOUT'
+              ? theme === "dark" ? "bg-red-600/20" : "bg-red-100"
+              : theme === "dark" ? "bg-indigo-600/20" : "bg-indigo-100"
           }`}>
-            <Loader2 className={`w-10 h-10 animate-spin ${
-              theme === "dark" ? "text-indigo-400" : "text-indigo-600"
-            }`} />
+            {transactionStatus === 'COMPLETED' ? (
+              <Check className={`w-10 h-10 ${
+                theme === "dark" ? "text-green-400" : "text-green-600"
+              }`} />
+            ) : transactionStatus === 'FAILED' || transactionStatus === 'TIMEOUT' ? (
+              <X className={`w-10 h-10 ${
+                theme === "dark" ? "text-red-400" : "text-red-600"
+              }`} />
+            ) : (
+              <Loader2 className={`w-10 h-10 animate-spin ${
+                theme === "dark" ? "text-indigo-400" : "text-indigo-600"
+              }`} />
+            )}
           </div>
 
           <div>
             <h3 className={`text-xl font-bold mb-2 ${
               theme === "dark" ? "text-white" : "text-gray-900"
-            }`}>Transaction In Progress</h3>
+            }`}>
+              {transactionStatus === 'COMPLETED' 
+                ? 'Transaction Complete!' 
+                : transactionStatus === 'FAILED'
+                ? 'Transaction Failed'
+                : transactionStatus === 'TIMEOUT'
+                ? 'Transaction Timeout'
+                : 'Transaction In Progress'}
+            </h3>
             <p className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-              Complete your purchase in the opened tab
+              {transactionStatus === 'COMPLETED'
+                ? `Your ${fromCoin} will arrive in your wallet shortly`
+                : transactionStatus === 'FAILED'
+                ? 'Something went wrong with your transaction'
+                : transactionStatus === 'TIMEOUT'
+                ? 'Transaction took too long - please check with provider'
+                : 'Complete your purchase in the opened tab'}
             </p>
+            
+            {transactionId && (
+              <p className={`text-xs mt-2 ${theme === "dark" ? "text-gray-500" : "text-gray-500"}`}>
+                ID: {transactionId.slice(0, 20)}...
+              </p>
+            )}
           </div>
 
-          <div className={`border rounded-xl p-4 max-w-md mx-auto ${
-            theme === "dark" 
-              ? "bg-blue-500/10 border-blue-500/20" 
-              : "bg-blue-50 border-blue-300"
-          }`}>
-            <p className={`text-sm ${theme === "dark" ? "text-blue-200" : "text-blue-800"}`}>
-              💡 A new tab has been opened with your payment provider. Complete the transaction there and return here when done.
-            </p>
-          </div>
+          {(!transactionStatus || transactionStatus === 'PENDING') && (
+            <div className={`border rounded-xl p-4 max-w-md mx-auto ${
+              theme === "dark" 
+                ? "bg-blue-500/10 border-blue-500/20" 
+                : "bg-blue-50 border-blue-300"
+            }`}>
+              <p className={`text-sm ${theme === "dark" ? "text-blue-200" : "text-blue-800"}`}>
+                💡 A new tab has been opened with your payment provider. Complete the transaction there.
+              </p>
+              <p className={`text-xs mt-2 ${theme === "dark" ? "text-blue-300" : "text-blue-700"}`}>
+                ⏱️ Status updates automatically every 5 seconds
+              </p>
+            </div>
+          )}
+
+          {transactionStatus === 'COMPLETED' && (
+            <div className={`border rounded-xl p-4 max-w-md mx-auto ${
+              theme === "dark" 
+                ? "bg-green-500/10 border-green-500/20" 
+                : "bg-green-50 border-green-300"
+            }`}>
+              <p className={`text-sm ${theme === "dark" ? "text-green-200" : "text-green-800"}`}>
+                ✅ Your {formatNumber(Number(cryptoAmount), 8)} {fromCoin} will arrive shortly
+              </p>
+            </div>
+          )}
+
+          {(transactionStatus === 'FAILED' || transactionStatus === 'TIMEOUT') && (
+            <div className={`border rounded-xl p-4 max-w-md mx-auto ${
+              theme === "dark" 
+                ? "bg-red-500/10 border-red-500/20" 
+                : "bg-red-50 border-red-300"
+            }`}>
+              <p className={`text-sm ${theme === "dark" ? "text-red-200" : "text-red-800"}`}>
+                ❌ {transactionStatus === 'TIMEOUT' 
+                  ? 'Please check your payment provider for transaction status'
+                  : 'Please try again or contact support if the issue persists'}
+              </p>
+            </div>
+          )}
 
           <button
-            onClick={() => setCurrentStep(1)}
+            onClick={() => {
+              setCurrentStep(1);
+              setTransactionId(null);
+              setTransactionStatus(null);
+              stopPolling();
+              localStorage.removeItem('pending_transaction');
+            }}
             className={`px-6 py-3 rounded-2xl font-semibold transition-colors ${
               theme === "dark"
                 ? "bg-gray-700 text-white hover:bg-gray-600"

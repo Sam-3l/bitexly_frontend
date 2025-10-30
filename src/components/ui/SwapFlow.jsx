@@ -15,7 +15,6 @@ function useDebounce(callback, delay, deps) {
 
 export default function SwapFlow() {
   const [currentStep, setCurrentStep] = useState(1);
-  const [confirmCountdown, setConfirmCountdown] = useState(0);
 
   // Coins data from Changelly
   const [changellyCoins, setChangellyCoins] = useState([]);
@@ -322,51 +321,25 @@ export default function SwapFlow() {
     }
   };
 
-  // Confirm transaction (manual check)
-  const handleConfirmTransaction = async () => {
-    if (!transactionResult?.id && !transactionResult?.transactionId) return;
-  
-    setConfirmingTransaction(true);
-    setStatusError(null);
-    setConfirmCountdown(15);
-  
-    try {
-      const transactionId = transactionResult.id || transactionResult.transactionId;
-      
-      // Countdown from 15 to 0
-      for (let i = 14; i >= 0; i--) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setConfirmCountdown(i);
-      }
-      
-      const status = await checkTransactionStatus(transactionId);
-      
-      setTransactionStatus(status);
-      
-      // If status is complete, move to step 4
-      const statusValue = status?.status || status;
-      if (statusValue === 'finished' || statusValue === 'success' || statusValue === 'completed') {
-        setCurrentStep(4);
-      } else if (statusValue === 'failed' || statusValue === 'expired') {
-        setStatusError(`Transaction ${statusValue}. Please try again or contact support.`);
-      } else if (statusValue === 'waiting' || statusValue === 'confirming' || statusValue === 'exchanging' || statusValue === 'sending') {
-        setStatusError(`Transaction is still processing (${statusValue}). Please wait a few more minutes and try again.`);
-      } else {
-        setStatusError(`Payment not detected yet. Please ensure you sent the exact amount to the correct address, then try again in a few minutes.`);
-      }
-    } catch (err) {
-      console.error("Confirmation error:", err);
-      setStatusError("Unable to verify transaction status. Please wait a few minutes and try again, or contact support if the issue persists.");
-    } finally {
-      setConfirmingTransaction(false);
-      setConfirmCountdown(0);
-    }
-  };
-
-  // Auto-poll transaction status when on step 4
+  // Auto-poll transaction status when on step 3 (after payment sent)
   useEffect(() => {
-    if (currentStep === 4 && transactionResult) {
+    if (currentStep === 3 && transactionResult && !transactionError) {
       const transactionId = transactionResult.id || transactionResult.transactionId;
+      
+      // Initial check after 5 seconds
+      const initialTimeout = setTimeout(async () => {
+        try {
+          const status = await checkTransactionStatus(transactionId);
+          setTransactionStatus(status);
+          
+          const statusValue = status?.status || status;
+          if (statusValue === 'finished' || statusValue === 'success' || statusValue === 'completed') {
+            setCurrentStep(4);
+          }
+        } catch (err) {
+          console.error("Initial status check error:", err);
+        }
+      }, 5000);
       
       // Poll every 10 seconds
       const interval = setInterval(async () => {
@@ -374,10 +347,12 @@ export default function SwapFlow() {
           const status = await checkTransactionStatus(transactionId);
           setTransactionStatus(status);
           
-          // Stop polling if transaction is complete or failed
+          // Move to step 4 if transaction is complete
           const statusValue = status?.status || status;
-          if (statusValue === 'finished' || statusValue === 'success' || statusValue === 'completed' || 
-              statusValue === 'failed' || statusValue === 'expired') {
+          if (statusValue === 'finished' || statusValue === 'success' || statusValue === 'completed') {
+            clearInterval(interval);
+            setCurrentStep(4);
+          } else if (statusValue === 'failed' || statusValue === 'expired') {
             clearInterval(interval);
           }
         } catch (err) {
@@ -387,9 +362,12 @@ export default function SwapFlow() {
 
       setPollingInterval(interval);
 
-      return () => clearInterval(interval);
+      return () => {
+        clearTimeout(initialTimeout);
+        clearInterval(interval);
+      };
     }
-  }, [currentStep, transactionResult]);
+  }, [currentStep, transactionResult, transactionError]);
 
   const resetFlow = () => {
     setCurrentStep(1);
@@ -803,24 +781,30 @@ export default function SwapFlow() {
           {transactionResult && !transactionError && (
             <div className="space-y-6">
               <div className="text-center">
-                <div className={`w-20 h-20 bg-gradient-to-br rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg ${
-                  theme === "dark" 
-                    ? "from-indigo-500 to-indigo-600 shadow-indigo-500/50" 
-                    : "from-indigo-400 to-indigo-500 shadow-indigo-400/50"
-                }`}>
-                  <Clock className="w-10 h-10 text-white" />
-                </div>
-                <h3 className={`text-2xl font-bold mb-2 ${
+                <h3 className={`text-xl font-bold mt-10 mb-2 ${
                   theme === "dark" ? "text-white" : "text-gray-900"
-                }`}>Send Your {fromCoin}</h3>
+                }`}>
+                  {['finished', 'success', 'completed'].includes(typeof transactionStatus === 'string' ? transactionStatus.toLowerCase() : (transactionStatus?.status || transactionStatus?.result || '').toLowerCase()) 
+                    ? '🎉 Transaction Complete!' 
+                    : 'Send Payment to Complete Swap'}
+                </h3>
                 <p className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-                  Transfer funds to the address below to complete your swap
+                  {['finished', 'success', 'completed'].includes(typeof transactionStatus === 'string' ? transactionStatus.toLowerCase() : (transactionStatus?.status || transactionStatus?.result || '').toLowerCase())
+                    ? 'Your swap has been processed successfully'
+                    : 'Transfer the exact amount to the address below'}
                 </p>
               </div>
 
-              <div className={`rounded-xl p-5 space-y-4 ${
-                theme === "dark" ? "bg-gray-800/60" : "bg-gray-100"
+              {/* Payment Details Card */}
+              <div className={`rounded-2xl p-5 space-y-4 ${
+                theme === "dark" ? "bg-gray-800/60 backdrop-blur-md" : "bg-gray-100"
               }`}>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className={`text-sm font-semibold ${
+                    theme === "dark" ? "text-gray-300" : "text-gray-700"
+                  }`}>Payment Information</h4>
+                </div>
+
                 <div>
                   <p className={`text-xs mb-2 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
                     Transaction ID
@@ -828,7 +812,7 @@ export default function SwapFlow() {
                   <div className={`p-3 rounded-lg ${
                     theme === "dark" ? "bg-gray-900/50" : "bg-white"
                   }`}>
-                    <p className={`text-sm font-mono break-all ${
+                    <p className={`text-xs font-mono break-all ${
                       theme === "dark" ? "text-white" : "text-gray-900"
                     }`}>
                       {transactionResult.id || transactionResult.transactionId}
@@ -843,10 +827,14 @@ export default function SwapFlow() {
                     </p>
                     <button
                       onClick={() => copyToClipboard(transactionResult.payinAddress || transactionResult.depositAddress)}
-                      className={`flex items-center gap-1 text-xs transition ${
-                        theme === "dark" 
-                          ? "text-indigo-400 hover:text-indigo-300" 
-                          : "text-indigo-600 hover:text-indigo-700"
+                      className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition ${
+                        copiedAddress
+                          ? theme === "dark"
+                            ? "bg-green-600/20 text-green-300"
+                            : "bg-green-100 text-green-700"
+                          : theme === "dark" 
+                            ? "bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30" 
+                            : "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
                       }`}
                     >
                       <Copy className="w-3 h-3" />
@@ -866,112 +854,206 @@ export default function SwapFlow() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className={`grid grid-cols-2 gap-4 pt-3 border-t ${
+                  theme === "dark" ? "border-gray-700" : "border-gray-300"
+                }`}>
                   <div>
-                    <p className={`mb-1 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+                    <p className={`text-xs mb-1 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
                       Amount to Send
                     </p>
-                    <p className={`font-semibold ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
+                    <p className={`font-semibold text-lg ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
                       {formatNumber(Number(fromAmount), 8)} {fromCoin}
                     </p>
                   </div>
                   <div>
-                    <p className={`mb-1 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-                      You Will Receive
+                    <p className={`text-xs mb-1 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+                      You'll Receive
                     </p>
-                    <p className={`font-semibold ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
+                    <p className={`font-semibold text-lg ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
                       {formatNumber(Number(toAmount), 8)} {toCoin}
                     </p>
                   </div>
                 </div>
 
                 {transactionResult.payinExtraId && (
-                  <div>
-                    <p className={`text-xs mb-2 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-                      Extra ID / Memo (Required)
-                    </p>
-                    <div className={`p-3 rounded-lg border ${
-                      theme === "dark" 
-                        ? "bg-gray-900/50 border-yellow-500/30" 
-                        : "bg-white border-yellow-400"
+                  <div className={`p-3 rounded-lg border ${
+                    theme === "dark" 
+                      ? "bg-yellow-600/10 border-yellow-500/30" 
+                      : "bg-yellow-50 border-yellow-300"
+                  }`}>
+                    <p className={`text-xs font-semibold mb-1 ${
+                      theme === "dark" ? "text-yellow-300" : "text-yellow-800"
+                    }`}>⚠️ Extra ID / Memo (Required)</p>
+                    <p className={`text-sm font-mono ${
+                      theme === "dark" ? "text-white" : "text-gray-900"
                     }`}>
-                      <p className={`text-sm font-mono ${
-                        theme === "dark" ? "text-white" : "text-gray-900"
-                      }`}>
-                        {transactionResult.payinExtraId}
-                      </p>
-                    </div>
+                      {transactionResult.payinExtraId}
+                    </p>
                   </div>
                 )}
               </div>
 
-              <div className={`border rounded-xl p-3 ${
-                theme === "dark" 
-                  ? "bg-yellow-500/10 border-yellow-500/20" 
-                  : "bg-yellow-50 border-yellow-300"
-              }`}>
-                <p className={`text-xs mb-2 font-semibold ${
-                  theme === "dark" ? "text-yellow-200" : "text-yellow-800"
-                }`}>⚠️ Important Instructions:</p>
-                <ul className={`text-xs space-y-1 list-disc list-inside ${
-                  theme === "dark" ? "text-yellow-200" : "text-yellow-800"
-                }`}>
-                  <li>Send exactly {formatNumber(Number(fromAmount), 8)} {fromCoin} to the deposit address above</li>
-                  <li>Sending a different amount may result in delays or loss of funds</li>
-                  {transactionResult.payinExtraId && (
-                    <li>Don't forget to include the Extra ID/Memo when sending</li>
-                  )}
-                  <li>After sending, click "Confirm Transaction" below to verify completion</li>
-                </ul>
-              </div>
-
-              {statusError && (
-                <div className={`border rounded-xl p-3 ${
+              {/* Transaction Status Tracker */}
+              {transactionStatus && (
+                <div className={`rounded-2xl p-5 ${
                   theme === "dark" 
-                    ? "bg-red-500/10 border-red-500/20" 
-                    : "bg-red-50 border-red-300"
+                    ? "bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-md border border-white/5" 
+                    : "bg-gradient-to-br from-white to-gray-50 border border-gray-200"
                 }`}>
-                  <p className={`text-xs ${theme === "dark" ? "text-red-400" : "text-red-700"}`}>
-                    {statusError}
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className={`text-sm font-semibold ${
+                      theme === "dark" ? "text-gray-300" : "text-gray-700"
+                    }`}>Transaction Progress</h4>
+                    <div className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${
+                      ['finished', 'success', 'completed'].includes(typeof transactionStatus === 'string' ? transactionStatus.toLowerCase() : (transactionStatus?.status || transactionStatus?.result || '').toLowerCase())
+                        ? theme === "dark" 
+                          ? "bg-green-600/20 text-green-300" 
+                          : "bg-green-100 text-green-700"
+                        : theme === "dark"
+                          ? "bg-indigo-600/20 text-indigo-300"
+                          : "bg-indigo-100 text-indigo-700"
+                    }`}>
+                      {(typeof transactionStatus === 'string' ? transactionStatus : (transactionStatus?.status || transactionStatus?.result || 'processing')).replace('_', ' ')}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {[
+                      { key: 'waiting', label: 'Waiting for Payment', icon: Clock },
+                      { key: 'confirming', label: 'Confirming Transaction', icon: Loader2 },
+                      { key: 'exchanging', label: 'Exchanging Currencies', icon: ArrowDownUp },
+                      { key: 'sending', label: 'Sending to Your Wallet', icon: Check }
+                    ].map((step, idx) => {
+                      const currentStatusValue = typeof transactionStatus === 'string' 
+                        ? transactionStatus.toLowerCase() 
+                        : (transactionStatus?.status || transactionStatus?.result || '').toLowerCase();
+                      const statusSteps = ['waiting', 'confirming', 'exchanging', 'sending'];
+                      const currentIndex = statusSteps.indexOf(currentStatusValue);
+                      const isActive = currentStatusValue === step.key;
+                      const isPassed = currentIndex > idx || ['finished', 'success', 'completed'].includes(currentStatusValue);
+                      const Icon = step.icon;
+                      
+                      return (
+                        <div key={step.key} className={`relative flex items-center gap-3 p-3 rounded-xl transition-all duration-300 ${
+                          isActive 
+                            ? theme === "dark" 
+                              ? "bg-indigo-600/20 border-2 border-indigo-500/50 shadow-lg shadow-indigo-500/20" 
+                              : "bg-indigo-50 border-2 border-indigo-400 shadow-lg shadow-indigo-400/20"
+                            : isPassed
+                              ? theme === "dark"
+                                ? "bg-green-600/10 border border-green-500/30"
+                                : "bg-green-50 border border-green-300"
+                              : theme === "dark"
+                                ? "bg-gray-800/30 border border-gray-700/30"
+                                : "bg-gray-100 border border-gray-200"
+                        }`}>
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
+                            isActive 
+                              ? theme === "dark" 
+                                ? "bg-indigo-600 shadow-lg shadow-indigo-500/50" 
+                                : "bg-indigo-500 shadow-lg shadow-indigo-400/50"
+                              : isPassed
+                                ? theme === "dark" ? "bg-green-600" : "bg-green-500"
+                                : theme === "dark" ? "bg-gray-700" : "bg-gray-300"
+                          }`}>
+                            {isPassed && !isActive ? (
+                              <Check className="w-5 h-5 text-white" />
+                            ) : isActive ? (
+                              <Icon className={`w-5 h-5 text-white ${step.key !== 'waiting' ? 'animate-spin' : ''}`} />
+                            ) : (
+                              <div className={`w-2 h-2 rounded-full ${
+                                theme === "dark" ? "bg-gray-500" : "bg-gray-400"
+                              }`} />
+                            )}
+                          </div>
+                          
+                          <div className="flex-1">
+                            <p className={`text-sm font-medium transition-colors ${
+                              isActive 
+                                ? theme === "dark" ? "text-indigo-300" : "text-indigo-700"
+                                : isPassed
+                                  ? theme === "dark" ? "text-green-300" : "text-green-700"
+                                  : theme === "dark" ? "text-gray-500" : "text-gray-500"
+                            }`}>
+                              {step.label}
+                            </p>
+                          </div>
+                          
+                          {isActive && (
+                            <div className="flex gap-1">
+                              <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+                                theme === "dark" ? "bg-indigo-400" : "bg-indigo-600"
+                              }`} style={{ animationDelay: '0ms' }} />
+                              <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+                                theme === "dark" ? "bg-indigo-400" : "bg-indigo-600"
+                              }`} style={{ animationDelay: '150ms' }} />
+                              <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+                                theme === "dark" ? "bg-indigo-400" : "bg-indigo-600"
+                              }`} style={{ animationDelay: '300ms' }} />
+                            </div>
+                          )}
+                          
+                          {/* Animated pulse for active state */}
+                          {isActive && (
+                            <div className={`absolute inset-0 rounded-xl animate-pulse ${
+                              theme === "dark" 
+                                ? "bg-indigo-500/10" 
+                                : "bg-indigo-400/10"
+                            }`} style={{ animationDuration: '2s' }} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Info Banner */}
+              {!transactionStatus && (
+                <div className={`border rounded-xl p-4 ${
+                  theme === "dark" 
+                    ? "bg-blue-500/10 border-blue-500/20" 
+                    : "bg-blue-50 border-blue-300"
+                }`}>
+                  <p className={`text-sm ${theme === "dark" ? "text-blue-200" : "text-blue-800"}`}>
+                    💡 Send <strong>{formatNumber(Number(fromAmount), 8)} {fromCoin}</strong> to the address above. The exchange will begin automatically once your payment is detected.
                   </p>
                 </div>
               )}
 
-              <button
-                onClick={handleConfirmTransaction}
-                disabled={confirmingTransaction}
-                className={`w-full py-3 text-white font-semibold rounded-2xl transition-all shadow-lg ${
-                  confirmingTransaction
-                    ? theme === "dark" 
-                      ? "bg-gray-700 cursor-not-allowed opacity-60" 
-                      : "bg-gray-400 cursor-not-allowed opacity-60"
-                    : theme === "dark" 
-                      ? "bg-green-600 hover:bg-green-700" 
-                      : "bg-green-500 hover:bg-green-600"
-                }`}
-              >
-                {confirmingTransaction ? (
+              {/* Completed - Show Details Button */}
+              {['finished', 'success', 'completed'].includes(typeof transactionStatus === 'string' ? transactionStatus.toLowerCase() : (transactionStatus?.status || transactionStatus?.result || '').toLowerCase()) && (
+                <button
+                  onClick={() => setCurrentStep(4)}
+                  className={`w-full py-3 text-white font-semibold rounded-2xl transition-all shadow-lg ${
+                    theme === "dark" 
+                      ? "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800" 
+                      : "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
+                  }`}
+                >
                   <span className="flex items-center justify-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" /> 
-                    {confirmCountdown > 0 
-                      ? `Checking payment... (${confirmCountdown}s)` 
-                      : "Verifying transaction..."
-                    }
+                    <Check className="w-5 h-5" /> View Transaction Details
                   </span>
-                ) : (
-                  "Confirm Transaction"
-                )}
-              </button>
+                </button>
+              )}
 
+              {/* Back button */}
               <button
                 onClick={goBack}
+                disabled={transactionStatus && !['finished', 'success', 'completed', 'failed', 'expired'].includes((transactionStatus?.status || '').toLowerCase())}
                 className={`w-full py-3 font-semibold rounded-2xl transition-colors ${
-                  theme === "dark" 
-                    ? "bg-gray-700 hover:bg-gray-600 text-white" 
-                    : "bg-gray-300 hover:bg-gray-400 text-gray-900"
+                  transactionStatus && !['finished', 'success', 'completed', 'failed', 'expired'].includes((transactionStatus?.status || '').toLowerCase())
+                    ? theme === "dark"
+                      ? "bg-gray-800 text-gray-600 cursor-not-allowed opacity-50"
+                      : "bg-gray-200 text-gray-400 cursor-not-allowed opacity-50"
+                    : theme === "dark" 
+                      ? "bg-gray-700 hover:bg-gray-600 text-white" 
+                      : "bg-gray-300 hover:bg-gray-400 text-gray-900"
                 }`}
               >
-                Go Back
+                {transactionStatus && !['finished', 'success', 'completed', 'failed', 'expired'].includes((transactionStatus?.status || '').toLowerCase())
+                  ? 'Transaction in Progress...'
+                  : 'Cancel & Go Back'}
               </button>
             </div>
           )}
