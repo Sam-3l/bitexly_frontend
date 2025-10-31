@@ -270,7 +270,6 @@ export default function SellFlow() {
             .then(quote => [quote])
             .catch(err => {
               console.error("OnRamp quote error:", err);
-              // FIXED: Store the error for special handling
               if (err.minAmount !== undefined || err.maxAmount !== undefined) {
                 onrampError = {
                   message: err.message || "Failed to get quote",
@@ -497,7 +496,7 @@ export default function SellFlow() {
           action: "SELL",
           sourceCurrencyCode: fromCoin,
           destinationCurrencyCode: toCurrency,
-          sourceAmount: Number(cryptoAmount),
+          sourceAmount: Number(fiatAmount),
         };
   
         console.log('OnRamp Sell Request:', payload);
