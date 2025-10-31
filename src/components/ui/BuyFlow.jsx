@@ -267,38 +267,17 @@ export default function BuyFlow() {
 
       // Only fetch from OnRamp if using network-specific coins
       if (onlyOnRamp) {
-        // Only OnRamp for USDT_TRC20/ERC20 + NGN
-        const onrampPayload = {
-          action: "BUY",
-          sourceAmount: Number(fiatAmount),
-          sourceCurrencyCode: toCurrency,
-          destinationCurrencyCode: fromCoin,
-          countryCode: "NG",
-        };
-        
         quotePromises.push(
-          apiClient.post("/onramp/quote/", onrampPayload)
-            .then(res => {
-              const data = res.data;
-              if (data.success && data.quote) {
-                return [{
-                  ...data.quote,
-                  provider: 'ONRAMP',
-                  serviceProvider: 'ONRAMP'
-                }];
-              }
-              return [];
-            })
+          onrampClient.getBuyQuote(quoteParams)
+            .then(quote => [quote])
             .catch(err => {
               console.error("OnRamp quote error:", err);
-              // FIXED: Store the error for special handling
-              const responseData = err.response?.data;
-              if (responseData) {
+              if (err.minAmount !== undefined || err.maxAmount !== undefined) {
                 onrampError = {
-                  message: responseData.message || responseData.details || "Failed to get quote",
-                  minAmount: responseData.minAmount || null,
-                  maxAmount: responseData.maxAmount || null,
-                  details: responseData.details || responseData.apiResponse?.error || ""
+                  message: err.message || "Failed to get quote",
+                  minAmount: err.minAmount || null,
+                  maxAmount: err.maxAmount || null,
+                  details: err.details || ""
                 };
               }
               return [];
@@ -335,7 +314,6 @@ export default function BuyFlow() {
               .then(quote => [quote])
               .catch(err => {
                 console.error("OnRamp quote error:", err);
-                // FIXED: Store the error for special handling
                 if (err.minAmount !== undefined || err.maxAmount !== undefined) {
                   onrampError = {
                     message: err.message || "Failed to get quote",
