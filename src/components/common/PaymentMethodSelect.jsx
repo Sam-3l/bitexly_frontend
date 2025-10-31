@@ -8,6 +8,7 @@ export default function PaymentMethodSelect({
   selectedMethod,
   setSelectedMethod,
   loadingMethods,
+  action,
 }) {
   const [open, setOpen] = useState(false);
   const { isDark } = useTheme();
@@ -55,7 +56,7 @@ export default function PaymentMethodSelect({
       <div className="relative w-full max-w-md bg-white dark:bg-[#1f2023] rounded-2xl shadow-2xl flex flex-col mt-16 sm:mt-20 max-h-[90vh] sm:max-h-[600px]">
         <div className="flex items-center justify-between p-4 border-b border-gray-300 dark:border-gray-700 flex-shrink-0">
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-            Select Payment Method
+            {action === "BUY" ? "Select Payment Method" : "Select Receiving Method"}
           </h2>
           <button
             onClick={() => setOpen(false)}
@@ -131,7 +132,7 @@ export default function PaymentMethodSelect({
   return (
     <>
       <div className="relative z-20 w-full">
-        <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Payment Method</p>
+        <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">{action === "BUY" ? "Payment Method" : "Receive Funds"}</p>
 
         {/* Dropdown Trigger - Original Style */}
         <div

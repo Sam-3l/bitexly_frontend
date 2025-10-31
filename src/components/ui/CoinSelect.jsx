@@ -8,6 +8,28 @@ let coinsCache = null;
 let cacheTimestamp = null;
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
+// Hardcoded USDT network coins
+const HARDCODED_USDT_COINS = [
+  {
+    id: "USDT_TRC20",
+    name: "Tether (TRC20)",
+    symbol: "USDT_TRC20",
+    code: "USDT_TRC20",
+    logo: "https://images-currency.meld.io/crypto/USDT/symbol.png",
+    chain: "TRON",
+    network: "trc20",
+  },
+  {
+    id: "USDT_ERC20",
+    name: "Tether (ERC20)",
+    symbol: "USDT_ERC20",
+    code: "USDT_ERC20",
+    logo: "https://images-currency.meld.io/crypto/USDT/symbol.png",
+    chain: "Ethereum",
+    network: "erc20",
+  },
+];
+
 export default function CoinSelect({
   value,
   onChange,
@@ -23,7 +45,8 @@ export default function CoinSelect({
     const fetchCoins = async () => {
       try {
         if (parentCoins?.length) {
-          setCoins(parentCoins);
+          // Prepend hardcoded coins
+          setCoins([...HARDCODED_USDT_COINS, ...parentCoins]);
           setLoading(false);
           return;
         }
@@ -46,12 +69,22 @@ export default function CoinSelect({
           chain: coin.chainName,
         }));
 
-        coinsCache = formatted;
+        // Remove regular USDT if it exists (to avoid duplication)
+        const filteredFormatted = formatted.filter(
+          coin => coin.symbol?.toUpperCase() !== 'USDT'
+        );
+
+        // Prepend hardcoded USDT coins at the top
+        const allCoins = [...HARDCODED_USDT_COINS, ...filteredFormatted];
+
+        coinsCache = allCoins;
         cacheTimestamp = Date.now() + CACHE_DURATION;
-        setCoins(formatted);
+        setCoins(allCoins);
         setLoading(false);
       } catch (err) {
         console.error("Error fetching coins:", err);
+        // Still show hardcoded coins even if API fails
+        setCoins(HARDCODED_USDT_COINS);
         setLoading(false);
       }
     };
@@ -86,7 +119,8 @@ export default function CoinSelect({
       (coin) =>
         coin.name?.toLowerCase().includes(s) ||
         coin.symbol?.toLowerCase().includes(s) ||
-        coin.code?.toLowerCase().includes(s)
+        coin.code?.toLowerCase().includes(s) ||
+        coin.chain?.toLowerCase().includes(s)
     );
   }, [coins, search]);
 

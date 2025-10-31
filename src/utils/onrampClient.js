@@ -16,6 +16,23 @@ export const onrampClient = {
   
       const res = await apiClient.post("/onramp/quote/", payload);
       const data = res.data;
+      
+      // Check for success flag
+      if (data.success === false) {
+        // Extract error details
+        const errorMsg = data.message || "Failed to get quote";
+        const errorDetails = data.details || data.apiResponse?.error || "";
+        
+        const minAmount = data.minAmount || null;
+        const maxAmount = data.maxAmount || null;
+        
+        const error = new Error(errorMsg);
+        error.minAmount = minAmount;
+        error.maxAmount = maxAmount;
+        error.details = errorDetails;
+        throw error;
+      }
+      
       const quote = data?.quote || data?.data?.quote;
   
       if (!quote) {
@@ -26,20 +43,47 @@ export const onrampClient = {
       return {
         serviceProvider: "ONRAMP",
         provider: "ONRAMP",
-        destinationAmount: quote.estimatedAmount,
-        destinationAmountWithoutFees: quote.estimatedAmount,
-        exchangeRate: quote.rate,
-        totalFee: quote.totalFees,
-        transactionFee: quote.fees?.clientFee ?? null,
-        networkFee: quote.fees?.gasFee ?? null,
+        destinationAmount: quote.estimatedAmount || quote.cryptoAmount || null,
+        destinationAmountWithoutFees: quote.estimatedAmount || quote.cryptoAmount || null,
+        exchangeRate: quote.rate || quote.exchangeRate || null,
+        totalFee: quote.totalFees || quote.fees?.total || 0,
+        transactionFee: quote.fees?.clientFee ?? quote.fees?.transactionFee ?? 0,
+        networkFee: quote.fees?.gasFee ?? quote.fees?.networkFee ?? 0,
+        minimumAmount: quote.minAmount || quote.minimumAmount || null,
         logoUrl: "/providers/onramp.png",
         ...quote, // keep original data
       };
     } catch (err) {
       console.error('OnRamp buy quote error:', err.response?.data || err.message);
-      const errorMessage = err.response?.data?.message || err.message || "Failed to get buy quote";
-      const errorDetails = err.response?.data?.details || err.response?.data?.supportedCurrencies;
-      throw new Error(errorMessage + (errorDetails ? ` - ${JSON.stringify(errorDetails)}` : ''));
+      
+      // If it's our custom error with min/max, preserve that info
+      if (err.minAmount !== undefined || err.maxAmount !== undefined) {
+        throw err;
+      }
+      
+      // Otherwise, parse from response
+      const responseData = err.response?.data;
+      const errorMessage = responseData?.message || err.message || "Failed to get buy quote";
+      const errorDetails = responseData?.details || responseData?.apiResponse?.error || "";
+      
+      // FIXED: Use min/max from backend response first
+      let minAmount = responseData?.minAmount || null;
+      let maxAmount = responseData?.maxAmount || null;
+      
+      // Fallback to parsing if not provided by backend
+      if (!minAmount && !maxAmount && errorDetails) {
+        const minMatch = errorDetails.match(/minimum.*?(\d+\.?\d*)/i);
+        const maxMatch = errorDetails.match(/maximum.*?(\d+\.?\d*)/i);
+        
+        if (minMatch) minAmount = parseFloat(minMatch[1]);
+        if (maxMatch) maxAmount = parseFloat(maxMatch[1]);
+      }
+      
+      const error = new Error(errorMessage);
+      error.minAmount = minAmount;
+      error.maxAmount = maxAmount;
+      error.details = errorDetails;
+      throw error;
     }
   },
   
@@ -57,6 +101,24 @@ export const onrampClient = {
   
       const res = await apiClient.post("/onramp/quote/", payload);
       const data = res.data;
+      
+      // Check for success flag
+      if (data.success === false) {
+        // Extract error details
+        const errorMsg = data.message || "Failed to get quote";
+        const errorDetails = data.details || data.apiResponse?.error || "";
+        
+        // FIXED: Use min/max from backend response
+        const minAmount = data.minAmount || null;
+        const maxAmount = data.maxAmount || null;
+        
+        const error = new Error(errorMsg);
+        error.minAmount = minAmount;
+        error.maxAmount = maxAmount;
+        error.details = errorDetails;
+        throw error;
+      }
+      
       const quote = data?.quote || data?.data?.quote;
   
       if (!quote) {
@@ -67,20 +129,47 @@ export const onrampClient = {
       return {
         serviceProvider: "ONRAMP",
         provider: "ONRAMP",
-        destinationAmount: quote.estimatedAmount,
-        destinationAmountWithoutFees: quote.estimatedAmount,
-        exchangeRate: quote.rate,
-        totalFee: quote.totalFees,
-        transactionFee: quote.fees?.clientFee ?? null,
-        networkFee: quote.fees?.gasFee ?? null,
+        destinationAmount: quote.estimatedAmount || quote.fiatAmount || null,
+        destinationAmountWithoutFees: quote.estimatedAmount || quote.fiatAmount || null,
+        exchangeRate: quote.rate || quote.exchangeRate || null,
+        totalFee: quote.totalFees || quote.fees?.total || 0,
+        transactionFee: quote.fees?.clientFee ?? quote.fees?.transactionFee ?? 0,
+        networkFee: quote.fees?.gasFee ?? quote.fees?.networkFee ?? 0,
+        minimumAmount: quote.minAmount || quote.minimumAmount || null,
         logoUrl: "/providers/onramp.png",
         ...quote,
       };
     } catch (err) {
       console.error('OnRamp sell quote error:', err.response?.data || err.message);
-      const errorMessage = err.response?.data?.message || err.message || "Failed to get sell quote";
-      const errorDetails = err.response?.data?.details || err.response?.data?.supportedCurrencies;
-      throw new Error(errorMessage + (errorDetails ? ` - ${JSON.stringify(errorDetails)}` : ''));
+      
+      // If it's our custom error with min/max, preserve that info
+      if (err.minAmount !== undefined || err.maxAmount !== undefined) {
+        throw err;
+      }
+      
+      // Otherwise, parse from response
+      const responseData = err.response?.data;
+      const errorMessage = responseData?.message || err.message || "Failed to get sell quote";
+      const errorDetails = responseData?.details || responseData?.apiResponse?.error || "";
+      
+      // FIXED: Use min/max from backend response first
+      let minAmount = responseData?.minAmount || null;
+      let maxAmount = responseData?.maxAmount || null;
+      
+      // Fallback to parsing if not provided by backend
+      if (!minAmount && !maxAmount && errorDetails) {
+        const minMatch = errorDetails.match(/minimum.*?(\d+\.?\d*)/i);
+        const maxMatch = errorDetails.match(/maximum.*?(\d+\.?\d*)/i);
+        
+        if (minMatch) minAmount = parseFloat(minMatch[1]);
+        if (maxMatch) maxAmount = parseFloat(maxMatch[1]);
+      }
+      
+      const error = new Error(errorMessage);
+      error.minAmount = minAmount;
+      error.maxAmount = maxAmount;
+      error.details = errorDetails;
+      throw error;
     }
   },  
 

@@ -49,6 +49,21 @@ export default function SellFlow() {
   // Session modal
   const [creatingSession, setCreatingSession] = useState(false);
 
+  // Check if a coin is one of the network-specific USDT variants
+  const isNetworkSpecificCoin = (coinCode) => {
+    return ["USDT_TRC20", "USDT_ERC20"].includes(coinCode?.toUpperCase());
+  };
+
+  // Check if current pair only supports OnRamp
+  // Returns true if:
+  // 1. Coin is network-specific (USDT_TRC20, USDT_ERC20)
+  // 2. Fiat currency is NGN (OnRamp only supports NGN)
+  const shouldOnlyUseOnRamp = (coinCode, fiatCode) => {
+    const isNetworkCoin = isNetworkSpecificCoin(coinCode);
+    const isNGN = fiatCode === 'NGN';
+    return isNetworkCoin && isNGN;
+  };
+
   const pollTransactionStatus = useCallback(async (txnId, provider) => {
     try {
       const response = await apiClient.get('/meld/transaction-status/', {
@@ -218,108 +233,192 @@ export default function SellFlow() {
     setQuoteError(null);
     setDetailedError(null);
     setCurrentQuote(null);
-  
+
     try {
       if (!fromCoin || !toCurrency || !cryptoAmount || Number(cryptoAmount) <= 0) return;
-  
+
       setLoadingQuote(true);
-  
+
+      // Check if we should only use OnRamp
+      const onlyOnRamp = shouldOnlyUseOnRamp(fromCoin, toCurrency);
+
+      // If not NGN and using network-specific coin, show error
+      if (isNetworkSpecificCoin(fromCoin) && toCurrency !== 'NGN') {
+        setQuoteError(`${fromCoin} is only available with NGN`);
+        setFiatAmount("");
+        setAvailableProviders([]);
+        setSelectedProvider(null);
+        setLoadingQuote(false);
+        return;
+      }
+
       const quoteParams = {
         sourceAmount: Number(cryptoAmount),
         sourceCurrency: fromCoin,
         destinationCurrency: toCurrency,
         countryCode: toCurrency === "NGN" ? "NG" : toCurrency === "USD" ? "US" : toCurrency.slice(0, 2),
       };
-  
-      // Fetch from all sources in parallel
+
       const quotePromises = [];
-  
-      // 1. Meld providers
-      const meldPayload = {
-        action: "SELL",
-        sourceAmount: Number(cryptoAmount),
-        sourceCurrencyCode: fromCoin,
-        destinationCurrencyCode: toCurrency,
-        countryCode: toCurrency === "NGN" ? "NG" : toCurrency === "USD" ? "US" : toCurrency.slice(0, 2),
-      };
-      quotePromises.push(
-        apiClient.post("/meld/crypto-quote/", meldPayload)
-          .then(res => {
-            const data = res.data;
-            const inner = data?.data || data;
-            return inner?.quotes || (inner?.quote ? [inner.quote] : []);
-          })
-          .catch(err => {
-            console.error("Meld quote error:", err);
-            return [];
-          })
-      );
-  
-      // 2. OnRamp (ONLY for NGN)
-      if (toCurrency === "NGN") {
+      let onrampError = null; // ADDED: Track OnRamp errors separately
+
+      // Only fetch from OnRamp if using network-specific coins
+      if (onlyOnRamp) {
+        // Only OnRamp for USDT_TRC20/ERC20 + NGN
+        const onrampPayload = {
+          action: "SELL",
+          sourceAmount: Number(cryptoAmount),
+          sourceCurrencyCode: fromCoin,
+          destinationCurrencyCode: toCurrency,
+          countryCode: "NG",
+        };
+        
         quotePromises.push(
-          onrampClient.getSellQuote(quoteParams)
-            .then(quote => [quote])
+          apiClient.post("/onramp/quote/", onrampPayload)
+            .then(res => {
+              const data = res.data;
+              if (data.success && data.quote) {
+                return [{
+                  ...data.quote,
+                  provider: 'ONRAMP',
+                  serviceProvider: 'ONRAMP'
+                }];
+              }
+              return [];
+            })
             .catch(err => {
               console.error("OnRamp quote error:", err);
+              // FIXED: Store the error for special handling
+              const responseData = err.response?.data;
+              if (responseData) {
+                onrampError = {
+                  message: responseData.message || responseData.details || "Failed to get quote",
+                  minAmount: responseData.minAmount || null,
+                  maxAmount: responseData.maxAmount || null,
+                  details: responseData.details || responseData.apiResponse?.error || ""
+                };
+              }
               return [];
             })
         );
-      }
-  
-      // 3. MoonPay (validate limits first)
-      quotePromises.push(
-        checkMoonPayLimits({
-          fromCoin,
-          toCurrency,
-          amount: cryptoAmount,
-          action: "SELL"
-        }).then(limitCheck => {
-          if (!limitCheck.isValid) {
-            console.log("MoonPay: Amount outside limits", limitCheck.reason);
-            return [];
-          }
-          
-          return moonpayClient.getSellQuote(quoteParams)
-            .then(quote => [quote])
+      } else {
+        // Regular flow - fetch from all providers
+
+        // 1. Meld providers
+        const meldPayload = {
+          action: "SELL",
+          sourceAmount: Number(cryptoAmount),
+          sourceCurrencyCode: fromCoin,
+          destinationCurrencyCode: toCurrency,
+          countryCode: toCurrency === "NGN" ? "NG" : toCurrency === "USD" ? "US" : toCurrency.slice(0, 2),
+        };
+        quotePromises.push(
+          apiClient.post("/meld/crypto-quote/", meldPayload)
+            .then(res => {
+              const data = res.data;
+              const inner = data?.data || data;
+              return inner?.quotes || (inner?.quote ? [inner.quote] : []);
+            })
             .catch(err => {
-              console.error("MoonPay quote error:", err);
+              console.error("Meld quote error:", err);
               return [];
-            });
-        })
-      );
-  
+            })
+        );
+
+        // 2. OnRamp (ONLY for NGN)
+        if (toCurrency === "NGN") {
+          quotePromises.push(
+            onrampClient.getSellQuote(quoteParams)
+              .then(quote => [quote])
+              .catch(err => {
+                console.error("OnRamp quote error:", err);
+                // FIXED: Store the error for special handling
+                if (err.minAmount !== undefined || err.maxAmount !== undefined) {
+                  onrampError = {
+                    message: err.message || "Failed to get quote",
+                    minAmount: err.minAmount || null,
+                    maxAmount: err.maxAmount || null,
+                    details: err.details || ""
+                  };
+                }
+                return [];
+              })
+          );
+        }
+
+        // 3. MoonPay (validate limits first)
+        quotePromises.push(
+          checkMoonPayLimits({
+            fromCoin,
+            toCurrency,
+            amount: cryptoAmount,
+            action: "SELL"
+          }).then(limitCheck => {
+            if (!limitCheck.isValid) {
+              console.log("MoonPay: Amount outside limits", limitCheck.reason);
+              return [];
+            }
+            
+            return moonpayClient.getSellQuote(quoteParams)
+              .then(quote => [quote])
+              .catch(err => {
+                console.error("MoonPay quote error:", err);
+                return [];
+              });
+          })
+        );
+      }
+
       const results = await Promise.all(quotePromises);
       const allQuotes = results.flat();
-  
+
       if (allQuotes.length === 0) {
-        // Fetch limits to provide detailed error
-        const limits = await fetchProviderLimits({
-          fromCoin,
-          toCurrency,
-          action: "SELL"
-        });
-        
-        setProviderLimits(limits);
-        
-        const errorInfo = analyzeNoProvidersError(
-          cryptoAmount,
-          limits,
-          "SELL",
-          fromCoin,
-          toCurrency
-        );
+        // FIXED: Check if we have OnRamp error with min/max info
+        if (onrampError && (onrampError.minAmount || onrampError.maxAmount)) {
+          setQuoteError(onrampError.message);
+          setDetailedError({
+            message: onrampError.message,
+            minAmount: onrampError.minAmount,
+            maxAmount: onrampError.maxAmount,
+            suggestion: onrampError.minAmount 
+              ? `Please enter an amount of at least ${formatNumber(onrampError.minAmount, 8)} ${fromCoin}`
+              : onrampError.maxAmount
+              ? `Please enter an amount less than ${formatNumber(onrampError.maxAmount, 8)} ${fromCoin}`
+              : null
+          });
+        } else if (onlyOnRamp) {
+          setQuoteError(`No quotes available for ${fromCoin} with NGN`);
+        } else {
+          // Fetch limits to provide detailed error
+          const limits = await fetchProviderLimits({
+            fromCoin,
+            toCurrency,
+            action: "SELL"
+          });
+          
+          setProviderLimits(limits);
+          
+          const errorInfo = analyzeNoProvidersError(
+            cryptoAmount,
+            limits,
+            "SELL",
+            fromCoin,
+            toCurrency
+          );
+          
+          setQuoteError(errorInfo.message);
+          setDetailedError(errorInfo);
+        }
         
         setFiatAmount("");
-        setQuoteError(errorInfo.message);
-        setDetailedError(errorInfo);
         setAvailableProviders([]);
         setSelectedProvider(null);
+        setLoadingQuote(false);
         return;
       }
-  
+
       setAvailableProviders(allQuotes);
-  
+
       // If no provider selected yet, select the first one
       if (!selectedProvider) {
         setSelectedProvider(allQuotes[0]);
