@@ -1,19 +1,13 @@
 import React from 'react';
-import { Twitter, Send, MessageCircle, Mail } from 'lucide-react';
+import { Twitter, Send, Instagram, Mail } from 'lucide-react';
 
 const Footer = () => {
   const footerLinks = {
     company: [
       { label: 'About', href: '#about' },
-      { label: 'Blog', href: '#blog' },
-      { label: 'Careers', href: '#careers' },
-      { label: 'Contact', href: '#contact' }
-    ],
-    resources: [
-      { label: 'Documentation', href: '#docs' },
-      { label: 'Help Center', href: '#help' },
-      { label: 'Community', href: '#community' },
-      { label: 'Status', href: '#status' }
+      { label: 'Blog', href: 'https://blog.bitexly.com' },
+      { label: 'Careers', href: 'https://blog.bitexly.com/career' },
+      { label: 'Contact', href: 'https://blog.bitexly.com/contact' }
     ],
     legal: [
       { label: 'Privacy Policy', href: '#privacy' },
@@ -24,11 +18,11 @@ const Footer = () => {
   };
 
   const socialLinks = [
-    { icon: Twitter, label: 'Twitter', href: '#', color: 'hover:text-blue-400' },
-    { icon: Send, label: 'Telegram', href: '#', color: 'hover:text-blue-500' },
-    { icon: MessageCircle, label: 'Discord', href: '#', color: 'hover:text-indigo-400' },
-    { icon: Mail, label: 'Email', href: '#', color: 'hover:text-red-400' }
-  ];
+    { icon: Twitter, label: 'Twitter', href: 'https://x.com/bitexly', color: 'hover:text-blue-400' },
+    { icon: Send, label: 'Telegram', href: 'https://t.me/bitexly', color: 'hover:text-blue-500' },
+    { icon: Instagram, label: 'Instagram', href: 'https://instagram.com/bitexly', color: 'hover:text-pink-500' },
+    { icon: Mail, label: 'Email', href: 'mailto:info@bitexly.com', color: 'hover:text-red-400' }
+  ];  
 
   return (
     <footer className="bg-white dark:bg-slate-900 border-t-2 border-slate-200 dark:border-slate-800">

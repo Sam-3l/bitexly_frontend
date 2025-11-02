@@ -444,6 +444,7 @@ export default function SwapFlow() {
                 onChange={setFromCoin}
                 coins={changellyCoins.length > 0 ? changellyCoins : undefined}
                 defaultSymbol="BTC"
+                useExtraCoins={false}
               />
             </div>
           </div>
@@ -484,6 +485,7 @@ export default function SwapFlow() {
                 onChange={setToCoin}
                 coins={changellyCoins.length > 0 ? changellyCoins : undefined}
                 defaultSymbol="ETH"
+                useExtraCoins={false}
               />
             </div>
 

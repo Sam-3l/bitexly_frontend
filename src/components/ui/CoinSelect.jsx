@@ -35,6 +35,7 @@ export default function CoinSelect({
   onChange,
   coins: parentCoins,
   defaultSymbol = "BTC",
+  useExtraCoins=true,
 }) {
   const [coins, setCoins] = useState([]);
   const [open, setOpen] = useState(false);
@@ -45,21 +46,24 @@ export default function CoinSelect({
     const fetchCoins = async () => {
       try {
         if (parentCoins?.length) {
-          // Prepend hardcoded coins
-          setCoins([...HARDCODED_USDT_COINS, ...parentCoins]);
+          // Prepend hardcoded coins only if useExtraCoins is true
+          const combinedCoins = useExtraCoins
+            ? [...HARDCODED_USDT_COINS, ...parentCoins]
+            : parentCoins;
+          setCoins(combinedCoins);
           setLoading(false);
           return;
         }
-
+  
         if (coinsCache && cacheTimestamp && Date.now() < cacheTimestamp) {
           setCoins(coinsCache);
           setLoading(false);
           return;
         }
-
+  
         const res = await apiClient.get("/meld/crypto-currencies/");
         const data = res.data?.data || res.data || [];
-
+  
         const formatted = data.map((coin) => ({
           id: coin.currencyCode,
           name: coin.name,
@@ -68,29 +72,31 @@ export default function CoinSelect({
           logo: coin.symbolImageUrl,
           chain: coin.chainName,
         }));
-
-        // Remove regular USDT if it exists (to avoid duplication)
+  
+        // Remove regular USDT to avoid duplication
         const filteredFormatted = formatted.filter(
-          coin => coin.symbol?.toUpperCase() !== 'USDT'
+          (coin) => coin.symbol?.toUpperCase() !== "USDT"
         );
-
-        // Prepend hardcoded USDT coins at the top
-        const allCoins = [...HARDCODED_USDT_COINS, ...filteredFormatted];
-
+  
+        // Include hardcoded coins only if useExtraCoins is true
+        const allCoins = useExtraCoins
+          ? [...HARDCODED_USDT_COINS, ...filteredFormatted]
+          : filteredFormatted;
+  
         coinsCache = allCoins;
         cacheTimestamp = Date.now() + CACHE_DURATION;
         setCoins(allCoins);
         setLoading(false);
       } catch (err) {
         console.error("Error fetching coins:", err);
-        // Still show hardcoded coins even if API fails
-        setCoins(HARDCODED_USDT_COINS);
+        // Still show hardcoded coins only if useExtraCoins is true
+        setCoins(useExtraCoins ? HARDCODED_USDT_COINS : []);
         setLoading(false);
       }
     };
-
+  
     fetchCoins();
-  }, [parentCoins]);
+  }, [parentCoins, useExtraCoins]);  
 
   useEffect(() => {
     if (!value && coins.length) {

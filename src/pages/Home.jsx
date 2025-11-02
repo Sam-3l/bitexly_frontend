@@ -9,7 +9,7 @@ import Footer from '/src/components/home/Footer';
 import usePageTitle from "../hooks/usePageTitle";
 
 const Home = () => {
-  usePageTitle("Crypto Buy, Sell & Swap");
+  usePageTitle("One Platform. All Your Crypto Access");
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-900 transition-colors duration-300">

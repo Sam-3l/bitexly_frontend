@@ -22,7 +22,7 @@ const Header = () => {
     { href: '#features', label: 'Features' },
     { href: '#providers', label: 'Providers' },
     { href: '#about', label: 'About' },
-    { href: '#contact', label: 'Contact' },
+    { href: 'https://blog.bitexly.com/contact', label: 'Contact' },
     { href: '/login', label: 'Login' }
   ];
 
