@@ -501,7 +501,7 @@ export default function SwapFlow() {
               <div className={`mt-2 text-xs ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}>
                 <div>Rate: <span className="font-medium">1 {fromCoin} ≈ {formatNumber(rateInfo.rate, 6)} {toCoin}</span></div>
                 {rateInfo.networkFee && (
-                  <div className="mt-1">Network Fee: <span className="font-medium">{formatNumber(Number(rateInfo.networkFee), 8)} {fromCoin}</span></div>
+                  <div className="mt-1">Network Fee: <span className="font-medium">{formatNumber(Number(rateInfo.networkFee), 8)} {toCoin}</span></div>
                 )}
                 {rateInfo.minAmount && (
                   <div className={`mt-1 ${theme === "dark" ? "text-yellow-300" : "text-yellow-700"}`}>
@@ -736,7 +736,7 @@ export default function SwapFlow() {
                         <div className="flex justify-between">
                           <span className={theme === "dark" ? "text-gray-400" : "text-gray-600"}>Network Fee</span>
                           <span className={theme === "dark" ? "text-white" : "text-gray-900"}>
-                            {formatNumber(Number(rateInfo.networkFee), 8)} {fromCoin}
+                            {formatNumber(Number(rateInfo.networkFee), 8)} {toCoin}
                           </span>
                         </div>
                       )}

@@ -74,14 +74,14 @@ export const AuthProvider = ({ children }) => {
 
   // Auto attach token to axios + auto refresh
   useEffect(() => {
-    if (tokens?.access) {
-      apiClient.defaults.headers.Authorization = `Bearer ${tokens.access}`;
-      fetchUserDetails(tokens.access);
-    }
-
-    const interval = setInterval(refreshAccessToken, 14 * 60 * 1000); // every 14 mins
+    if (!tokens?.access) return;
+  
+    apiClient.defaults.headers.Authorization = `Bearer ${tokens.access}`;
+    fetchUserDetails(tokens.access);
+  
+    const interval = setInterval(refreshAccessToken, 14 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [tokens, refreshAccessToken, fetchUserDetails]);
+  }, [tokens, refreshAccessToken, fetchUserDetails]);  
 
   return (
     <AuthContext.Provider value={{ user, login, logout, tokens }}>
