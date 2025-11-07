@@ -5,13 +5,13 @@ const Footer = () => {
   const footerLinks = {
     company: [
       { label: 'About', href: '#about' },
-      { label: 'Blog', href: 'https://bitexly.org' },
-      { label: 'Careers', href: 'https://bitexly.org/career' },
-      { label: 'Contact', href: 'https://bitexly.org/contact' }
+      { label: 'Blog', href: 'https://blog.bitexly.com' },
+      { label: 'Careers', href: 'https://blog.bitexly.com/career' },
+      { label: 'Contact', href: 'https://blog.bitexly.com/contact' }
     ],
     legal: [
-      { label: 'Privacy Policy', href: 'https://bitexly.org/privacy' },
-      { label: 'Terms of Service', href: 'https://bitexly.org/terms' },
+      { label: 'Privacy Policy', href: 'https://blog.bitexly.com/privacy' },
+      { label: 'Terms of Service', href: 'https://blog.bitexly.com/terms' },
       { label: 'Cookie Policy', href: '#cookies' },
       { label: 'Compliance', href: '#compliance' }
     ]
