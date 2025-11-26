@@ -123,8 +123,8 @@ export const fetchProviderLimits = async (params) => {
       })
     );
 
-    // 2. OnRamp limits (only for NGN)
-    if (toCurrency === "NGN") {
+    // 2. OnRamp limits (for NGN and ZAR)
+    if (toCurrency === "NGN" || toCurrency === "ZAR") {
       limitPromises.push(
         onrampClient.getSupportedCryptocurrencies()
           .then(() => ({

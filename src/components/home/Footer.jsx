@@ -10,11 +10,11 @@ const Footer = () => {
       { label: 'Contact', href: 'https://blog.bitexly.com/contact' }
     ],
     legal: [
-      { label: 'Privacy Policy', href: 'https://blog.bitexly.com/privacy' },
-      { label: 'Terms of Service', href: 'https://blog.bitexly.com/terms' },
-      { label: 'Cookie Policy', href: '#cookies' },
+      { label: 'Privacy Policy', href: '/privacy-policy' },
+      { label: 'Terms of Service', href: '/terms-of-use' },
+      { label: 'Cookie Policy', href: '/cookies-policy' },
       { label: 'Compliance', href: '#compliance' }
-    ]
+    ]    
   };
 
   const socialLinks = [

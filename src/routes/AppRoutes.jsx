@@ -7,9 +7,12 @@ import { AuthContext } from "../context/AuthContext";
 const Login = lazy(() => import("../pages/auth/Login"));
 const Register = lazy(() => import("../pages/auth/Register"));
 const Dashboard = lazy(() => import("../pages/dashboard/Dashboard"));
-
-// landing page (Home)
 const Home = lazy(() => import("../pages/Home"));
+
+// Lazy load legal pages
+const PrivacyPolicy = lazy(() => import("../pages/PrivacyPolicy"));
+const CookiesPolicy = lazy(() => import("../pages/CookiesPolicy"));
+const TermsOfUse = lazy(() => import("../pages/TermsOfUse"));
 
 export default function AppRoutes() {
   const { user } = useContext(AuthContext);
@@ -45,6 +48,11 @@ export default function AppRoutes() {
             </ProtectedRoute>
           }
         />
+
+        {/* Legal Pages */}
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/cookies-policy" element={<CookiesPolicy />} />
+        <Route path="/terms-of-use" element={<TermsOfUse />} />
 
         {/* Default Redirect */}
         <Route path="*" element={<Navigate to="/" replace />} />

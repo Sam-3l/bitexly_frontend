@@ -57,10 +57,10 @@ export default function SellFlow() {
   // Check if current pair only supports OnRamp
   // Returns true if:
   // 1. Coin is network-specific (USDT_TRC20, USDT_ERC20)
-  // 2. Fiat currency is NGN (OnRamp only supports NGN)
+  // 2. Fiat currency is NGN/ZAR (OnRamp only supports NGN and ZAR)
   const shouldOnlyUseOnRamp = (coinCode, fiatCode) => {
     const isNetworkCoin = isNetworkSpecificCoin(coinCode);
-    const isNGN = fiatCode === 'NGN';
+    const isNGN = fiatCode === 'NGN' || fiatCode === 'ZAR';
     return isNetworkCoin && isNGN;
   };
 
@@ -242,9 +242,9 @@ export default function SellFlow() {
       // Check if we should only use OnRamp
       const onlyOnRamp = shouldOnlyUseOnRamp(fromCoin, toCurrency);
 
-      // If not NGN and using network-specific coin, show error
-      if (isNetworkSpecificCoin(fromCoin) && toCurrency !== 'NGN') {
-        setQuoteError(`${fromCoin} is only available with NGN`);
+      // If not NGN/ZAR and using network-specific coin, show error
+      if (isNetworkSpecificCoin(fromCoin) && (toCurrency !== 'NGN' && toCurrency !== 'ZAR')) {
+        setQuoteError(`${fromCoin} is only available with NGN or ZAR`);
         setFiatAmount("");
         setAvailableProviders([]);
         setSelectedProvider(null);
@@ -305,8 +305,8 @@ export default function SellFlow() {
             })
         );
 
-        // 2. OnRamp (ONLY for NGN)
-        if (toCurrency === "NGN") {
+        // 2. OnRamp (ONLY for NGN and ZAR)
+        if (toCurrency === "NGN" || toCurrency === "ZAR") {
           quotePromises.push(
             onrampClient.getSellQuote(quoteParams)
               .then(quote => [quote])
@@ -367,7 +367,7 @@ export default function SellFlow() {
               : null
           });
         } else if (onlyOnRamp) {
-          setQuoteError(`No quotes available for ${fromCoin} with NGN`);
+          setQuoteError(`No quotes available for ${fromCoin} with ${toCurrency} via OnRamp.`);
         } else {
           // Fetch limits to provide detailed error
           const limits = await fetchProviderLimits({

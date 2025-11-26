@@ -10,15 +10,15 @@ const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
 // Hardcoded USDT network coins
 const HARDCODED_USDT_COINS = [
-  {
-    id: "USDT_TRC20",
-    name: "Tether (TRC20)",
-    symbol: "USDT_TRC20",
-    code: "USDT_TRC20",
-    logo: "https://images-currency.meld.io/crypto/USDT/symbol.png",
-    chain: "TRON",
-    network: "trc20",
-  },
+  // {
+  //   id: "USDT_TRC20",
+  //   name: "Tether (TRC20)",
+  //   symbol: "USDT_TRC20",
+  //   code: "USDT_TRC20",
+  //   logo: "https://images-currency.meld.io/crypto/USDT/symbol.png",
+  //   chain: "TRON",
+  //   network: "trc20",
+  // },
   {
     id: "USDT_ERC20",
     name: "Tether (ERC20)",
@@ -54,16 +54,16 @@ export default function CoinSelect({
           setLoading(false);
           return;
         }
-  
+
         if (coinsCache && cacheTimestamp && Date.now() < cacheTimestamp) {
           setCoins(coinsCache);
           setLoading(false);
           return;
         }
-  
+
         const res = await apiClient.get("/meld/crypto-currencies/");
         const data = res.data?.data || res.data || [];
-  
+
         const formatted = data.map((coin) => ({
           id: coin.currencyCode,
           name: coin.name,
@@ -72,17 +72,17 @@ export default function CoinSelect({
           logo: coin.symbolImageUrl,
           chain: coin.chainName,
         }));
-  
+
         // Remove regular USDT to avoid duplication
         const filteredFormatted = formatted.filter(
           (coin) => coin.symbol?.toUpperCase() !== "USDT"
         );
-  
+
         // Include hardcoded coins only if useExtraCoins is true
         const allCoins = useExtraCoins
           ? [...HARDCODED_USDT_COINS, ...filteredFormatted]
           : filteredFormatted;
-  
+
         coinsCache = allCoins;
         cacheTimestamp = Date.now() + CACHE_DURATION;
         setCoins(allCoins);
@@ -94,9 +94,9 @@ export default function CoinSelect({
         setLoading(false);
       }
     };
-  
+
     fetchCoins();
-  }, [parentCoins, useExtraCoins]);  
+  }, [parentCoins, useExtraCoins]);
 
   useEffect(() => {
     if (!value && coins.length) {
