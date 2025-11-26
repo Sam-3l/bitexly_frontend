@@ -4,6 +4,7 @@ import { lazy, Suspense, useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
 
 // Lazy load pages for better performance
+const ForgotPassword = lazy(() => import("../pages/auth/ForgotPassword"));
 const Login = lazy(() => import("../pages/auth/Login"));
 const Register = lazy(() => import("../pages/auth/Register"));
 const Dashboard = lazy(() => import("../pages/dashboard/Dashboard"));
@@ -38,6 +39,8 @@ export default function AppRoutes() {
           path="/register"
           element={!user ? <Register /> : <Navigate to="/dashboard" replace />}
         />
+
+        <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* Protected Routes */}
         <Route

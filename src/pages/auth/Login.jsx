@@ -74,6 +74,16 @@ export default function Login() {
             onChange={handleChange}
           />
 
+          {/* Forgot Password Link */}
+          <div className="flex justify-end">
+            <Link
+              to="/forgot-password"
+              className="text-sm text-indigo-600 hover:text-indigo-500 transition font-medium"
+            >
+              Forgot Password?
+            </Link>
+          </div>
+
           {error && (
             <p className="text-red-500 text-sm text-center">{error}</p>
           )}
@@ -82,7 +92,7 @@ export default function Login() {
             type="submit"
             loading={loading}
             variant="primary"
-            >
+          >
             Login
           </Button>
         </form>
@@ -93,7 +103,7 @@ export default function Login() {
             to="/register"
             className="text-indigo-600 hover:text-indigo-500 transition font-medium"
           >
-            Don’t have an account? Register
+            Don't have an account? Register
           </Link>
         </div>
       </div>

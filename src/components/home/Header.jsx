@@ -19,9 +19,9 @@ const Header = () => {
   }, []);
 
   const navLinks = [
-    { href: '#features', label: 'Features' },
-    { href: '#providers', label: 'Providers' },
-    { href: '#about', label: 'About' },
+    { href: '/#features', label: 'Features' },
+    { href: '/#providers', label: 'Providers' },
+    { href: '/#about', label: 'About' },
     { href: 'https://blog.bitexly.com/contact', label: 'Contact' },
     { href: '/login', label: 'Login' }
   ];

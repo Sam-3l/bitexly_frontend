@@ -55,7 +55,7 @@ const AuthService = {
     }
   },
 
-  // Forgot Password
+  // Forgot Password - Handles all 3 stages
   forgotPassword: async (data) => {
     try {
       const response = await apiClient.post("/users/forgot-password/", data);
