@@ -8,10 +8,10 @@ const NotFound = () => {
   usePageTitle('Page Not Found | Bitexly');
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-900 transition-colors duration-300 flex flex-col">
+    <div className="min-h-screen bg-white dark:bg-slate-900 transition-colors duration-300 pt-32 flex flex-col">
       <Header />
 
-      <main className="flex-grow flex flex-col items-center justify-center text-center px-4">
+      <main className="flex-grow flex flex-col items-center justify-center text-center px-4 pb-20">
         <h1 className="text-6xl md:text-7xl font-bold text-slate-900 dark:text-white mb-6">
           404
         </h1>

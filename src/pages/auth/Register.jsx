@@ -18,6 +18,17 @@ export default function Register() {
           <p className="text-gray-500 text-sm mt-1">
             Create an account to get started
           </p>
+          
+          {/* NEW: Sign in link */}
+          <div className="mt-4 text-sm text-gray-600">
+            Already have an account?{" "}
+            <a 
+              href="/login" 
+              className="text-indigo-600 hover:text-indigo-700 font-medium hover:underline"
+            >
+              Sign in
+            </a>
+          </div>
         </div>
 
         {/* Center the stepper + box */}

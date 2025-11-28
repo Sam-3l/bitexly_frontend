@@ -1,27 +1,13 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import AuthService from "../../services/authService";
 import InputField from "../../components/forms/InputField";
 import Button from "../../components/common/Button";
 import StepIndicator from "./StepIndicator";
 
-const COUNTRIES = [
-  "Nigeria",
-  "United States",
-  "United Kingdom",
-  "Ghana",
-  "Kenya",
-  "South Africa",
-];
-
-const stepsMeta = [
-  { label: "Account", sub: "Email & username" },
-  { label: "Verify", sub: "OTP verification" },
-  { label: "Complete", sub: "Password & profile" },
-  { label: "Done", sub: "All set" },
-];
-
 export default function RegistrationStepper() {
   const [step, setStep] = useState(1);
+  const [countries, setCountries] = useState([]);
+  const [loadingCountries, setLoadingCountries] = useState(true);
 
   // Step 1
   const [signupData, setSignupData] = useState({
@@ -48,6 +34,33 @@ export default function RegistrationStepper() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+
+  // Fetch countries on mount
+  useEffect(() => {
+    const fetchCountries = async () => {
+      try {
+        const response = await fetch("https://restcountries.com/v3.1/all?fields=name");
+        const data = await response.json();
+  
+        const sortedCountries = data
+          .map(country => country?.name?.common)
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b));
+  
+        setCountries(sortedCountries);
+      } catch (err) {
+        console.error("Failed to fetch countries:", err);
+        setCountries([
+          "Nigeria", "United States", "United Kingdom", 
+          "Ghana", "Kenya", "South Africa"
+        ]);
+      } finally {
+        setLoadingCountries(false);
+      }
+    };
+  
+    fetchCountries();
+  }, []);  
 
   const updateSignup = (e) =>
     setSignupData({ ...signupData, [e.target.name]: e.target.value });
@@ -153,7 +166,13 @@ export default function RegistrationStepper() {
     }
   };
 
-  // shared classes
+  const stepsMeta = [
+    { label: "Account", sub: "Email & username" },
+    { label: "Verify", sub: "OTP verification" },
+    { label: "Complete", sub: "Password & profile" },
+    { label: "Done", sub: "All set" },
+  ];
+
   const containerClass = "w-full max-w-2xl mx-auto";
   const panelClass = "bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden";
 
@@ -164,7 +183,6 @@ export default function RegistrationStepper() {
       </div>
 
       <div className={`${containerClass} ${panelClass}`}>
-        {/* put padding on the wrapper so active step controls internal spacing */}
         <div className="p-8">
           {step === 1 && (
             <div>
@@ -172,7 +190,7 @@ export default function RegistrationStepper() {
                 Create your account
               </h3>
               <p className="text-sm text-gray-500 mb-6">
-                Enter your email and a preferred username — we’ll send an OTP to verify.
+                Enter your email and a preferred username — we'll send an OTP to verify.
               </p>
 
               {error && (
@@ -327,9 +345,12 @@ export default function RegistrationStepper() {
                     value={completeData.country}
                     onChange={updateComplete}
                     className="w-full rounded-lg border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    disabled={loadingCountries}
                   >
-                    <option value="">Select country</option>
-                    {COUNTRIES.map((c) => (
+                    <option value="">
+                      {loadingCountries ? "Loading countries..." : "Select country"}
+                    </option>
+                    {countries.map((c) => (
                       <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
