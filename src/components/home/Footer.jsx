@@ -7,7 +7,7 @@ const Footer = () => {
       { label: 'About', href: '#about' },
       { label: 'Blog', href: 'https://blog.bitexly.com' },
       { label: 'Careers', href: 'https://blog.bitexly.com/career' },
-      { label: 'Contact', href: 'https://blog.bitexly.com/contact' }
+      { label: 'Contact', href: '/contact' }
     ],
     legal: [
       { label: 'Privacy Policy', href: '/privacy-policy' },

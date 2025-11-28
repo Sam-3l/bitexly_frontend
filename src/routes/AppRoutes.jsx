@@ -9,6 +9,8 @@ const Login = lazy(() => import("../pages/auth/Login"));
 const Register = lazy(() => import("../pages/auth/Register"));
 const Dashboard = lazy(() => import("../pages/dashboard/Dashboard"));
 const Home = lazy(() => import("../pages/Home"));
+const Contact = lazy(() => import("../pages/Contact"));
+const NotFound = lazy(() => import("../pages/NotFound"));
 
 // Lazy load legal pages
 const PrivacyPolicy = lazy(() => import("../pages/PrivacyPolicy"));
@@ -30,6 +32,9 @@ export default function AppRoutes() {
         {/* Public Landing Page */}
         <Route path="/" element={<Home />} />
 
+        {/* Contact Page */}
+        <Route path="/contact" element={<Contact />} />
+
         {/* Auth Routes */}
         <Route
           path="/login"
@@ -39,7 +44,6 @@ export default function AppRoutes() {
           path="/register"
           element={!user ? <Register /> : <Navigate to="/dashboard" replace />}
         />
-
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* Protected Routes */}
@@ -57,8 +61,8 @@ export default function AppRoutes() {
         <Route path="/cookies-policy" element={<CookiesPolicy />} />
         <Route path="/terms-of-use" element={<TermsOfUse />} />
 
-        {/* Default Redirect */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* Not Found */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
   );

@@ -4,7 +4,7 @@ import Footer from "/src/components/home/Footer";
 import usePageTitle from "../hooks/usePageTitle";
 
 const CookiesPolicy = () => {
-  usePageTitle("Cookies Policy - Bitexly");
+  usePageTitle("Cookies Policy");
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-900 transition-colors duration-300">
