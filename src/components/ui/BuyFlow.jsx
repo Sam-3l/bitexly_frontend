@@ -287,9 +287,29 @@ export default function BuyFlow() {
             })
         );
       } else {
-        // Regular flow - fetch from all providers
+        // Fetch from all providers
+        
+        // 1. OnRamp (for NGN and ZAR)
+        if (toCurrency === "NGN" || toCurrency === "ZAR") {
+          quotePromises.push(
+            onrampClient.getBuyQuote(quoteParams)
+              .then(quote => [quote])
+              .catch(err => {
+                console.error("OnRamp quote error:", err);
+                if (err.minAmount !== undefined || err.maxAmount !== undefined) {
+                  onrampError = {
+                    message: err.message || "Failed to get quote",
+                    minAmount: err.minAmount || null,
+                    maxAmount: err.maxAmount || null,
+                    details: err.details || ""
+                  };
+                }
+                return [];
+              })
+          );
+        }
 
-        // 1. Meld providers
+        // 2. Meld providers
         const meldPayload = {
           action: "BUY",
           sourceAmount: Number(fiatAmount),
@@ -309,26 +329,6 @@ export default function BuyFlow() {
               return [];
             })
         );
-
-        // 2. OnRamp (for NGN and ZAR)
-        if (toCurrency === "NGN" || toCurrency === "ZAR") {
-          quotePromises.push(
-            onrampClient.getBuyQuote(quoteParams)
-              .then(quote => [quote])
-              .catch(err => {
-                console.error("OnRamp quote error:", err);
-                if (err.minAmount !== undefined || err.maxAmount !== undefined) {
-                  onrampError = {
-                    message: err.message || "Failed to get quote",
-                    minAmount: err.minAmount || null,
-                    maxAmount: err.maxAmount || null,
-                    details: err.details || ""
-                  };
-                }
-                return [];
-              })
-          );
-        }
 
         // 3. MoonPay (validate limits first)
         quotePromises.push(
@@ -618,7 +618,7 @@ export default function BuyFlow() {
           destinationCurrencyCode: fromCoin,
           sourceAmount: Number(fiatAmount),
           walletAddress: walletAddress,
-          email: userEmail, // Use actual user email for signature
+          email: userEmail, // Use user email for signature
         };
   
         console.log('FinchPay Buy Request:', payload);

@@ -282,30 +282,9 @@ export default function SellFlow() {
             })
         );
       } else {
-        // Regular flow - fetch from all providers
+        // Fetch from all providers
 
-        // 1. Meld providers
-        const meldPayload = {
-          action: "SELL",
-          sourceAmount: Number(cryptoAmount),
-          sourceCurrencyCode: fromCoin,
-          destinationCurrencyCode: toCurrency,
-          countryCode: toCurrency === "NGN" ? "NG" : toCurrency === "USD" ? "US" : toCurrency.slice(0, 2),
-        };
-        quotePromises.push(
-          apiClient.post("/meld/crypto-quote/", meldPayload)
-            .then(res => {
-              const data = res.data;
-              const inner = data?.data || data;
-              return inner?.quotes || (inner?.quote ? [inner.quote] : []);
-            })
-            .catch(err => {
-              console.error("Meld quote error:", err);
-              return [];
-            })
-        );
-
-        // 2. OnRamp (ONLY for NGN and ZAR)
+        // 1. OnRamp (ONLY for NGN and ZAR)
         if (toCurrency === "NGN" || toCurrency === "ZAR") {
           quotePromises.push(
             onrampClient.getSellQuote(quoteParams)
@@ -325,6 +304,27 @@ export default function SellFlow() {
               })
           );
         }
+
+        // 2. Meld providers
+        const meldPayload = {
+          action: "SELL",
+          sourceAmount: Number(cryptoAmount),
+          sourceCurrencyCode: fromCoin,
+          destinationCurrencyCode: toCurrency,
+          countryCode: toCurrency === "NGN" ? "NG" : toCurrency === "USD" ? "US" : toCurrency.slice(0, 2),
+        };
+        quotePromises.push(
+          apiClient.post("/meld/crypto-quote/", meldPayload)
+            .then(res => {
+              const data = res.data;
+              const inner = data?.data || data;
+              return inner?.quotes || (inner?.quote ? [inner.quote] : []);
+            })
+            .catch(err => {
+              console.error("Meld quote error:", err);
+              return [];
+            })
+        );
 
         // 3. MoonPay (validate limits first)
         quotePromises.push(

@@ -4,7 +4,7 @@ import { Twitter, Send, Instagram, Mail } from 'lucide-react';
 const Footer = () => {
   const footerLinks = {
     company: [
-      { label: 'About', href: '#about' },
+      { label: 'About', href: '/#about' },
       { label: 'Blog', href: 'https://blog.bitexly.com' },
       { label: 'Careers', href: 'https://blog.bitexly.com/career' },
       { label: 'Contact', href: '/contact' }

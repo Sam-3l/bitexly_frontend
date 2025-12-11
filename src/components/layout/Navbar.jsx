@@ -21,7 +21,7 @@ export default function Navbar() {
       {/* Actions */}
       <div className="flex items-center gap-4">
         {/* Google Play Store Icon */}
-        <a
+        {/* <a
           href="https://play.google.com/store/apps/details?id=yourapp"
           target="_blank"
           rel="noopener noreferrer"
@@ -32,7 +32,7 @@ export default function Navbar() {
             alt="Google Play"
             className="h-5 w-auto"
           />
-        </a>
+        </a> */}
 
         {/* Theme Toggle */}
         <button
@@ -48,12 +48,12 @@ export default function Navbar() {
         </button>
 
         {/* Notifications */}
-        <button className="relative flex items-center justify-center w-10 h-10 bg-slate-200 dark:bg-white/20 backdrop-blur-md rounded-full hover:bg-slate-300 dark:hover:bg-white/30 transition">
+        {/* <button className="relative flex items-center justify-center w-10 h-10 bg-slate-200 dark:bg-white/20 backdrop-blur-md rounded-full hover:bg-slate-300 dark:hover:bg-white/30 transition">
           <Bell className="w-5 h-5 text-slate-700 dark:text-white" />
           <span className="absolute top-1 right-1 bg-red-500 text-white text-[10px] px-[4px] py-[1px] rounded-full">
             3
           </span>
-        </button>
+        </button> */}
 
         {/* Logout */}
         <button
