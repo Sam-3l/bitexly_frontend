@@ -3,6 +3,7 @@ import { ArrowDownUp, Loader2, X, ChevronLeft, Check, AlertCircle } from "lucide
 import { validateWalletAddress } from "../../utils/walletValidator";
 import { onrampClient } from "../../utils/onrampClient";
 import { moonpayClient } from "../../utils/moonpayClient";
+import { finchpayClient } from "../../utils/finchpayClient";
 import { fetchProviderLimits, analyzeNoProvidersError, checkMoonPayLimits } from "../../utils/limitsChecker";
 import ThemeContext from "../../context/ThemeContext";
 import CoinSelect from "./CoinSelect";
@@ -142,7 +143,7 @@ export default function BuyFlow() {
   // Fetch payment methods based on selected provider
   const fetchPaymentMethods = useCallback(async () => {
     if (!toCurrency || !fromCoin || !selectedProvider) return;
-
+  
     setLoadingPaymentMethods(true);
     try {
       const providerName = (selectedProvider.serviceProvider || selectedProvider.provider || '').toUpperCase();
@@ -161,6 +162,9 @@ export default function BuyFlow() {
           fiatCurrency: toCurrency,
         });
         setPaymentMethods(methods);
+      } else if (providerName === 'FINCHPAY') {
+        const methods = await finchpayClient.getPaymentMethods();
+        setPaymentMethods(methods);
       } else {
         // Meld provider
         const params = {
@@ -175,12 +179,10 @@ export default function BuyFlow() {
         const data = res.data?.data || res.data || [];
         const allMethods = Array.isArray(data) ? data : [];
         
-        // Filter out sell-only payment methods
         const buyMethods = allMethods.filter(method => {
           const methodName = method.paymentMethod?.toUpperCase() || '';
           const name = method.name?.toUpperCase() || '';
           
-          // Exclude sell-only methods (payout methods)
           return !methodName.includes('PAYOUT') && 
                 !name.includes('PAYOUT') &&
                 !methodName.includes('WITHDRAWAL');
@@ -264,6 +266,7 @@ export default function BuyFlow() {
 
       const quotePromises = [];
       let onrampError = null;
+      let finchpayError = null;
 
       // Only fetch from OnRamp if using network-specific coins
       if (onlyOnRamp) {
@@ -348,13 +351,35 @@ export default function BuyFlow() {
               });
           })
         );
+
+        // 4. FinchPay
+        quotePromises.push(
+          finchpayClient.getBuyQuote({
+            sourceAmount: fiatAmount,
+            sourceCurrency: toCurrency,
+            destinationCurrency: fromCoin,
+            paymentMethod: "card"
+          })
+            .then(quote => [quote])
+            .catch(err => {
+              console.error("FinchPay quote error:", err);
+              if (err.minAmount !== undefined || err.maxAmount !== undefined) {
+                finchpayError = {
+                  message: err.message || "Failed to get quote",
+                  minAmount: err.minAmount || null,
+                  maxAmount: err.maxAmount || null,
+                  details: err.details || ""
+                };
+              }
+              return [];
+            })
+        );
       }
 
       const results = await Promise.all(quotePromises);
       const allQuotes = results.flat();
 
       if (allQuotes.length === 0) {
-        // FIXED: Check if we have OnRamp error with min/max info
         if (onrampError && (onrampError.minAmount || onrampError.maxAmount)) {
           setQuoteError(onrampError.message);
           setDetailedError({
@@ -365,6 +390,18 @@ export default function BuyFlow() {
               ? `Please enter an amount of at least ${formatNumber(onrampError.minAmount, 2)} ${toCurrency}`
               : onrampError.maxAmount
               ? `Please enter an amount less than ${formatNumber(onrampError.maxAmount, 2)} ${toCurrency}`
+              : null
+          });
+        } else if (finchpayError && (finchpayError.minAmount || finchpayError.maxAmount)) {
+          setQuoteError(finchpayError.message);
+          setDetailedError({
+            message: finchpayError.message,
+            minAmount: finchpayError.minAmount,
+            maxAmount: finchpayError.maxAmount,
+            suggestion: finchpayError.minAmount 
+              ? `Please enter an amount of at least ${formatNumber(finchpayError.minAmount, 2)} ${toCurrency}`
+              : finchpayError.maxAmount
+              ? `Please enter an amount less than ${formatNumber(finchpayError.maxAmount, 2)} ${toCurrency}`
               : null
           });
         } else if (onlyOnRamp) {
@@ -494,7 +531,7 @@ export default function BuyFlow() {
   const handleProceedToCheckout = async () => {
     const providerName = (selectedProvider?.serviceProvider || selectedProvider?.provider || '').toUpperCase();
     
-    // OnRamp doesn't need wallet validation since their widget collects it
+    // Only OnRamp doesn't need wallet validation (collects in their widget)
     if (providerName !== 'ONRAMP' && (!walletAddress || !addressValid)) {
       return;
     }
@@ -506,14 +543,20 @@ export default function BuyFlow() {
     
     setCreatingSession(true);
     try {
-      // Get or create customer ID
+      // Get user details from localStorage
       const storedUser = localStorage.getItem("bitexly_user");
       let customerId;
+      let userEmail = "";
   
       if (storedUser) {
         const userData = JSON.parse(storedUser);
         const user_details = userData.user_details || {};
+        
+        // Extract customer ID
         customerId = user_details.id || user_details.email || user_details.username;
+        
+        // Extract actual email for FinchPay
+        userEmail = user_details.email || "";
       }
   
       // Fallback for guests
@@ -527,11 +570,12 @@ export default function BuyFlow() {
       }
   
       console.log("✅ Customer ID:", customerId);
+      if (userEmail) console.log("✅ User Email:", userEmail);
   
       let url, txnId;
   
       if (providerName === 'ONRAMP') {
-        // OnRamp BUY flow
+        // OnRamp BUY flow - doesn't need wallet address
         const payload = {
           action: "BUY",
           sourceCurrencyCode: toCurrency,
@@ -565,6 +609,25 @@ export default function BuyFlow() {
         
         url = data.widgetUrl || data.paymentUrl;
         txnId = data.transactionId || data.data?.transactionId;
+  
+      } else if (providerName === 'FINCHPAY') {
+        // FinchPay BUY flow - needs wallet address and email
+        const payload = {
+          action: "BUY",
+          sourceCurrencyCode: toCurrency,
+          destinationCurrencyCode: fromCoin,
+          sourceAmount: Number(fiatAmount),
+          walletAddress: walletAddress,
+          email: userEmail, // Use actual user email for signature
+        };
+  
+        console.log('FinchPay Buy Request:', payload);
+  
+        const res = await apiClient.post("/finchpay/generate-url/", payload);
+        const data = res.data;
+        
+        url = data.widgetUrl || data.paymentUrl;
+        txnId = data.transactionId || data.externalId;
   
       } else {
         // Meld BUY flow
