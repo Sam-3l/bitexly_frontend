@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import Navbar from "../../components/layout/Navbar";
 import ExchangeBox from "../../components/ui/ExchangeBox";
+import RecentTransactionsWidget from "../../components/dashboard/RecentTransactionsWidget";
 import Particles from "../../components/ui/Particles";
 import usePageTitle from "../../hooks/usePageTitle";
 
@@ -9,7 +10,6 @@ export default function Dashboard() {
 
   return (
     <div className="relative min-h-screen bg-slate-50 dark:bg-gray-900 overflow-x-hidden transition-colors duration-300">
-
       {/* Blurred animated background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         {/* Desktop/Tablet backgrounds */}
@@ -37,9 +37,20 @@ export default function Dashboard() {
       <Navbar />
 
       {/* Main Content */}
-      <main className="flex justify-center items-center min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-70px)] relative z-10 w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        <div className="w-full max-w-7xl">
-          <ExchangeBox />
+      <main className="relative z-10 w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div className="max-w-7xl mx-auto">
+          {/* Grid Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column - Exchange Box (takes 2 columns on large screens) */}
+            <div className="lg:col-span-2">
+              <ExchangeBox />
+            </div>
+
+            {/* Right Column - Recent Transactions (takes 1 column on large screens) */}
+            <div className="lg:col-span-1">
+              <RecentTransactionsWidget />
+            </div>
+          </div>
         </div>
       </main>
     </div>

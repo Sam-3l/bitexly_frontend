@@ -55,6 +55,7 @@ const ProvidersSection = () => {
     { name: "Mercuryo", logo: "mercuryo" },
     { name: "Meld", logo: "meld" },
     { name: "Changelly", logo: "changelly" },
+    { name: "Finchpay", logo: "finchpay" },
   ];
 
   return (

@@ -8,6 +8,7 @@ const ForgotPassword = lazy(() => import("../pages/auth/ForgotPassword"));
 const Login = lazy(() => import("../pages/auth/Login"));
 const Register = lazy(() => import("../pages/auth/Register"));
 const Dashboard = lazy(() => import("../pages/dashboard/Dashboard"));
+const TransactionHistory = lazy(() => import("../pages/transactions/TransactionHistory"));
 const Home = lazy(() => import("../pages/Home"));
 const Contact = lazy(() => import("../pages/Contact"));
 const NotFound = lazy(() => import("../pages/NotFound"));
@@ -52,6 +53,15 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/transactions"
+          element={
+            <ProtectedRoute>
+              <TransactionHistory />
             </ProtectedRoute>
           }
         />
