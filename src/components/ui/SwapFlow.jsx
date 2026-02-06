@@ -4,6 +4,7 @@ import { validateWalletAddress } from "../../utils/walletValidator";
 import ThemeContext from "../../context/ThemeContext";
 import CoinSelect from "./CoinSelect";
 import apiClient from "../../utils/apiClient";
+import ProviderSelect from "../common/ProviderSelect";
 
 function useDebounce(callback, delay, deps) {
   useEffect(() => {
@@ -16,16 +17,19 @@ function useDebounce(callback, delay, deps) {
 export default function SwapFlow() {
   const [currentStep, setCurrentStep] = useState(1);
 
-  // Coins data from Changelly
-  const [changellyCoins, setChangellyCoins] = useState([]);
-  const [loadingChangellyCoins, setLoadingChangellyCoins] = useState(true);
+  // Coins data - shared across all providers
+  const [swapCoins, setSwapCoins] = useState([]);
+  const [loadingCoins, setLoadingCoins] = useState(true);
 
   // Step 1: Amount & Pair
-  const [fromAmount, setFromAmount] = useState("");
+  const [fromAmount, setFromAmount] = useState("0.1");
   const [toAmount, setToAmount] = useState("");
   const [fromCoin, setFromCoin] = useState("BTC");
   const [toCoin, setToCoin] = useState("ETH");
 
+  // Provider selection
+  const [availableProviders, setAvailableProviders] = useState([]);
+  const [selectedProvider, setSelectedProvider] = useState(null);
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [quoteError, setQuoteError] = useState(null);
   const [currentQuote, setCurrentQuote] = useState(null);
@@ -64,9 +68,9 @@ export default function SwapFlow() {
     setTimeout(() => setCopiedAddress(false), 2000);
   };
 
-  // Fetch Changelly coins
+  // Fetch coins (using Changelly as the master list for all providers)
   useEffect(() => {
-    const fetchChangellyCoins = async () => {
+    const fetchSwapCoins = async () => {
       try {
         const res = await apiClient.get("/users/api/changelly/get-coins/");
         const coinsList = res.data?.result || [];
@@ -80,24 +84,26 @@ export default function SwapFlow() {
           enabled: c.enabled !== false,
         })).filter(c => c.enabled);
 
-        setChangellyCoins(formatted);
+        setSwapCoins(formatted);
       } catch (err) {
-        console.error("Failed to fetch Changelly coins:", err);
-        setChangellyCoins([]);
+        console.error("Failed to fetch swap coins:", err);
+        setSwapCoins([]);
       } finally {
-        setLoadingChangellyCoins(false);
+        setLoadingCoins(false);
       }
     };
 
-    fetchChangellyCoins();
+    fetchSwapCoins();
   }, []);
 
-  // Fetch exchange rate
+  // Fetch exchange rate from all providers
   const fetchExchangeRate = useCallback(async () => {
     if (!fromCoin || !toCoin || !fromAmount || Number(fromAmount) <= 0) {
       setToAmount("");
       setCurrentQuote(null);
       setRateInfo(null);
+      setAvailableProviders([]);
+      setSelectedProvider(null);
       return;
     }
 
@@ -105,75 +111,147 @@ export default function SwapFlow() {
     setLoadingQuote(true);
 
     try {
-      const res = await apiClient.post("/users/api/changelly/exchange-amount/", {
-        from: fromCoin.toLowerCase(),
-        to: toCoin.toLowerCase(),
-        amount: String(fromAmount),
-      });
+      const quotePromises = [];
 
-      const result = res.data?.result;
-      
-      if (!result) {
-        throw new Error("Invalid response from server");
+      // 1. Changelly quote
+      quotePromises.push(
+        apiClient.post("/users/api/changelly/exchange-amount/", {
+          from: fromCoin.toLowerCase(),
+          to: toCoin.toLowerCase(),
+          amount: String(fromAmount),
+        })
+        .then(res => {
+          const result = res.data?.result;
+          if (!result) return null;
+
+          let quoteData = result;
+          if (Array.isArray(result) && result.length > 0) {
+            quoteData = result[0];
+          }
+
+          const estimatedAmount = quoteData.amountTo || quoteData.result || quoteData.estimatedAmount;
+          if (!estimatedAmount) return null;
+
+          const rate = Number(estimatedAmount) / Number(fromAmount);
+          
+          return {
+            provider: 'CHANGELLY',
+            serviceProvider: 'Changelly',
+            estimatedAmount: estimatedAmount,
+            rate: rate,
+            minAmount: quoteData.minFrom || quoteData.min || quoteData.minAmount || null,
+            maxAmount: quoteData.maxFrom || quoteData.max || quoteData.maxAmount || null,
+            networkFee: quoteData.networkFee || null,
+            fee: quoteData.fee || null,
+            rawData: quoteData,
+            logo: 'providers/changelly.png'
+          };
+        })
+        .catch(err => {
+          console.error("Changelly quote error:", err);
+          return null;
+        })
+      );
+
+      // 2. Exolix quote
+      quotePromises.push(
+        apiClient.post("/exolix/rate/", {
+          coinFrom: fromCoin.toUpperCase(),
+          networkFrom: fromCoin.toUpperCase(), // Using same as coin for simplicity
+          coinTo: toCoin.toUpperCase(),
+          networkTo: toCoin.toUpperCase(),
+          amount: String(fromAmount),
+          rateType: "float"
+        })
+        .then(res => {
+          const quote = res.data?.quote;
+          if (!quote || !quote.estimatedAmount) return null;
+
+          return {
+            provider: 'EXOLIX',
+            serviceProvider: 'Exolix',
+            estimatedAmount: quote.estimatedAmount,
+            rate: quote.rate,
+            minAmount: quote.minAmount,
+            maxAmount: quote.maxAmount,
+            networkFee: null,
+            fee: null,
+            rawData: quote,
+            rateType: quote.rateType,
+            logo: 'providers/exolix.png'
+          };
+        })
+        .catch(err => {
+          console.error("Exolix quote error:", err);
+          return null;
+        })
+      );
+
+      const results = await Promise.all(quotePromises);
+      const validQuotes = results.filter(q => q !== null);
+
+      if (validQuotes.length === 0) {
+        setQuoteError("No quotes available for this pair. Please try a different amount or currency.");
+        setToAmount("");
+        setCurrentQuote(null);
+        setRateInfo(null);
+        setAvailableProviders([]);
+        setSelectedProvider(null);
+        setLoadingQuote(false);
+        return;
       }
 
-      let quoteData = result;
-      if (Array.isArray(result) && result.length > 0) {
-        quoteData = result[0];
-      }
+      setAvailableProviders(validQuotes);
 
-      const estimatedAmount = quoteData.amountTo || quoteData.result || quoteData.estimatedAmount;
-      
-      if (!estimatedAmount) {
-        throw new Error("No exchange amount returned");
-      }
-
-      setToAmount(String(estimatedAmount));
-      setCurrentQuote(quoteData);
-      
-      const rate = Number(estimatedAmount) / Number(fromAmount);
-      setRateInfo({
-        rate: rate,
-        minAmount: quoteData.minFrom || quoteData.min || quoteData.minAmount || null,
-        maxAmount: quoteData.maxFrom || quoteData.max || quoteData.maxAmount || null,
-        networkFee: quoteData.networkFee || null,
-        fee: quoteData.fee || null,
-      });
-
-    } // Replace the catch block in fetchExchangeRate:
-    catch (err) {
-      console.error("Exchange rate error:", err);
-      
-      let errorMessage = "Unable to fetch exchange rate. Please try again.";
-      
-      // Check if amount is below minimum
-      if (rateInfo?.minAmount && Number(fromAmount) < Number(rateInfo.minAmount)) {
-        errorMessage = `Amount is below minimum. Minimum: ${formatNumber(Number(rateInfo.minAmount), 8)} ${fromCoin}`;
-      }
-      // Check if amount is above maximum
-      else if (rateInfo?.maxAmount && Number(fromAmount) > Number(rateInfo.maxAmount)) {
-        errorMessage = `Amount exceeds maximum. Maximum: ${formatNumber(Number(rateInfo.maxAmount), 8)} ${fromCoin}`;
-      }
-      // Check response for min/max info even if rateInfo not set
-      else if (err.response?.data?.result) {
-        const result = err.response.data.result;
-        const resultData = Array.isArray(result) ? result[0] : result;
-        
-        if (resultData?.minFrom && Number(fromAmount) < Number(resultData.minFrom)) {
-          errorMessage = `Amount is below minimum. Minimum: ${formatNumber(Number(resultData.minFrom), 8)} ${fromCoin}`;
-        } else if (resultData?.maxFrom && Number(fromAmount) > Number(resultData.maxFrom)) {
-          errorMessage = `Amount exceeds maximum. Maximum: ${formatNumber(Number(resultData.maxFrom), 8)} ${fromCoin}`;
+      // Auto-select best rate or keep current provider if still available
+      if (!selectedProvider) {
+        // Select provider with best rate (highest estimated amount)
+        const bestQuote = validQuotes.reduce((best, current) => 
+          Number(current.estimatedAmount) > Number(best.estimatedAmount) ? current : best
+        );
+        setSelectedProvider(bestQuote);
+      } else {
+        // Keep same provider if it still exists in new quotes
+        const stillExists = validQuotes.find(
+          q => q.provider === selectedProvider.provider
+        );
+        if (stillExists) {
+          setSelectedProvider(stillExists);
+        } else {
+          const bestQuote = validQuotes.reduce((best, current) => 
+            Number(current.estimatedAmount) > Number(best.estimatedAmount) ? current : best
+          );
+          setSelectedProvider(bestQuote);
         }
       }
-      
-      setQuoteError(err.response?.data?.error || errorMessage);
+
+    } catch (err) {
+      console.error("Exchange rate error:", err);
+      setQuoteError("Unable to fetch exchange rates. Please try again.");
       setToAmount("");
       setCurrentQuote(null);
       setRateInfo(null);
+      setAvailableProviders([]);
+      setSelectedProvider(null);
     } finally {
       setLoadingQuote(false);
     }
-  }, [fromAmount, fromCoin, toCoin]);
+  }, [fromAmount, fromCoin, toCoin, selectedProvider]);
+
+  // Update toAmount and rateInfo when selectedProvider changes
+  useEffect(() => {
+    if (selectedProvider && fromAmount && Number(fromAmount) > 0) {
+      setToAmount(String(selectedProvider.estimatedAmount));
+      setRateInfo({
+        rate: selectedProvider.rate,
+        minAmount: selectedProvider.minAmount,
+        maxAmount: selectedProvider.maxAmount,
+        networkFee: selectedProvider.networkFee,
+        fee: selectedProvider.fee,
+      });
+      setCurrentQuote(selectedProvider);
+    }
+  }, [selectedProvider, fromAmount]);
 
   useDebounce(fetchExchangeRate, 600, [fromAmount, fromCoin, toCoin]);
 
@@ -271,45 +349,106 @@ export default function SwapFlow() {
     }
   };
 
-  // Create transaction
+  // Create transaction based on selected provider
   const handleCreateTransaction = async () => {
-    if (!fromAmount || !walletAddress || !addressValid) return;
+    if (!fromAmount || !walletAddress || !addressValid || !selectedProvider) return;
 
     setCreatingTransaction(true);
     setTransactionError(null);
 
     try {
-      const res = await apiClient.post("/users/api/changelly/create-transaction/", {
-        from: fromCoin.toLowerCase(),
-        to: toCoin.toLowerCase(),
-        amount: String(fromAmount),
-        wallet_address: walletAddress,
-      });
+      const providerName = selectedProvider.provider.toUpperCase();
+      let result;
 
-      const result = res.data?.result;
-      
-      if (!result) {
-        throw new Error("Invalid response from server");
+      if (providerName === 'CHANGELLY') {
+        // Changelly transaction
+        const res = await apiClient.post("/users/api/changelly/create-transaction/", {
+          from: fromCoin.toLowerCase(),
+          to: toCoin.toLowerCase(),
+          amount: String(fromAmount),
+          wallet_address: walletAddress,
+        });
+
+        result = res.data?.result;
+        if (!result) throw new Error("Invalid response from Changelly");
+
+      } else if (providerName === 'EXOLIX') {
+        // Exolix transaction
+        const res = await apiClient.post("/exolix/create-transaction/", {
+          coinFrom: fromCoin.toUpperCase(),
+          networkFrom: fromCoin.toUpperCase(),
+          coinTo: toCoin.toUpperCase(),
+          networkTo: toCoin.toUpperCase(),
+          amount: String(fromAmount),
+          withdrawalAddress: walletAddress,
+          rateType: selectedProvider.rateType || "float"
+        });
+
+        const exolixData = res.data?.transaction;
+        if (!exolixData) throw new Error("Invalid response from Exolix");
+
+        // Map Exolix response to match Changelly structure for UI consistency
+        result = {
+          id: exolixData.id,
+          payinAddress: exolixData.depositAddress,
+          payoutAddress: exolixData.withdrawalAddress,
+          payinExtraId: exolixData.depositExtraId || null,
+          amountFrom: exolixData.amount,
+          amountTo: exolixData.amountTo,
+          status: exolixData.status,
+          provider: 'EXOLIX'
+        };
+
+      } else {
+        throw new Error(`Unknown provider: ${providerName}`);
       }
 
+      // Add provider info to result
+      result.provider = providerName;
       setTransactionResult(result);
+
     } catch (err) {
       console.error("Transaction error:", err);
-      setTransactionError(err.response?.data?.error || "Unable to create transaction. Please try again.");
+      setTransactionError(
+        err.response?.data?.error || 
+        err.response?.data?.message ||
+        err.message ||
+        "Unable to create transaction. Please try again."
+      );
     } finally {
       setCreatingTransaction(false);
     }
   };
 
-  // Check transaction status
-  const checkTransactionStatus = async (transactionId) => {
+  // Check transaction status based on provider
+  const checkTransactionStatus = async (transactionId, provider) => {
     try {
-      const res = await apiClient.post("/users/api/changelly/confirm-transaction/", {
-        transaction_id: transactionId,
-      });
+      const providerName = provider?.toUpperCase() || 'CHANGELLY';
+      let result;
 
-      const result = res.data?.result;
-      
+      if (providerName === 'CHANGELLY') {
+        const res = await apiClient.post("/users/api/changelly/confirm-transaction/", {
+          transaction_id: transactionId,
+        });
+        result = res.data?.result;
+
+      } else if (providerName === 'EXOLIX') {
+        const res = await apiClient.get(`/exolix/transaction/${transactionId}/`);
+        const exolixData = res.data?.transaction;
+        
+        // Map Exolix status to Changelly-like structure
+        result = {
+          id: exolixData.id,
+          status: exolixData.status,
+          amountFrom: exolixData.amount,
+          amountTo: exolixData.amountTo,
+          payoutHash: exolixData.hashOut?.hash || null,
+          payoutHashLink: exolixData.hashOut?.link || null,
+          payinHash: exolixData.hashIn?.hash || null,
+          provider: 'EXOLIX'
+        };
+      }
+
       if (!result) {
         throw new Error("Invalid response from server");
       }
@@ -325,15 +464,21 @@ export default function SwapFlow() {
   useEffect(() => {
     if (currentStep === 3 && transactionResult && !transactionError) {
       const transactionId = transactionResult.id || transactionResult.transactionId;
+      const provider = transactionResult.provider || 'CHANGELLY';
       
       // Initial check after 5 seconds
       const initialTimeout = setTimeout(async () => {
         try {
-          const status = await checkTransactionStatus(transactionId);
+          const status = await checkTransactionStatus(transactionId, provider);
           setTransactionStatus(status);
           
+          // Check if complete based on provider
           const statusValue = status?.status || status;
-          if (statusValue === 'finished' || statusValue === 'success' || statusValue === 'completed') {
+          const isComplete = provider === 'EXOLIX'
+            ? statusValue === 'success'
+            : ['finished', 'success', 'completed'].includes(statusValue);
+          
+          if (isComplete) {
             setCurrentStep(4);
           }
         } catch (err) {
@@ -344,15 +489,23 @@ export default function SwapFlow() {
       // Poll every 10 seconds
       const interval = setInterval(async () => {
         try {
-          const status = await checkTransactionStatus(transactionId);
+          const status = await checkTransactionStatus(transactionId, provider);
           setTransactionStatus(status);
           
           // Move to step 4 if transaction is complete
           const statusValue = status?.status || status;
-          if (statusValue === 'finished' || statusValue === 'success' || statusValue === 'completed') {
+          const isComplete = provider === 'EXOLIX'
+            ? statusValue === 'success'
+            : ['finished', 'success', 'completed'].includes(statusValue);
+          
+          const isFailed = provider === 'EXOLIX'
+            ? ['overdue', 'refund', 'refunded'].includes(statusValue)
+            : ['failed', 'expired'].includes(statusValue);
+          
+          if (isComplete) {
             clearInterval(interval);
             setCurrentStep(4);
-          } else if (statusValue === 'failed' || statusValue === 'expired') {
+          } else if (isFailed) {
             clearInterval(interval);
           }
         } catch (err) {
@@ -389,8 +542,16 @@ export default function SwapFlow() {
   };
 
   const isTransactionComplete = () => {
+    if (!transactionStatus) return false;
+    
     const statusValue = transactionStatus?.status || transactionStatus;
-    return statusValue === 'finished' || statusValue === 'success' || statusValue === 'completed';
+    const provider = transactionResult?.provider || 'CHANGELLY';
+    
+    if (provider === 'EXOLIX') {
+      return statusValue === 'success';
+    } else {
+      return ['finished', 'success', 'completed'].includes(statusValue);
+    }
   };
 
   const { theme } = useContext(ThemeContext);
@@ -442,7 +603,7 @@ export default function SwapFlow() {
               <CoinSelect 
                 value={fromCoin} 
                 onChange={setFromCoin}
-                coins={changellyCoins.length > 0 ? changellyCoins : undefined}
+                coins={swapCoins.length > 0 ? swapCoins : undefined}
                 defaultSymbol="BTC"
                 useExtraCoins={false}
               />
@@ -483,7 +644,7 @@ export default function SwapFlow() {
               <CoinSelect 
                 value={toCoin} 
                 onChange={setToCoin}
-                coins={changellyCoins.length > 0 ? changellyCoins : undefined}
+                coins={swapCoins.length > 0 ? swapCoins : undefined}
                 defaultSymbol="ETH"
                 useExtraCoins={false}
               />
@@ -521,6 +682,16 @@ export default function SwapFlow() {
                 <span>{quoteError}</span>
               </div>
             )}
+          </div>
+
+          {/* Provider Selection Dropdown */}
+          <div className="relative z-[4]">
+            <ProviderSelect
+              availableProviders={availableProviders}
+              selectedProvider={selectedProvider}
+              setSelectedProvider={setSelectedProvider}
+              loadingQuote={loadingQuote}
+            />
           </div>
 
           <button
@@ -786,14 +957,34 @@ export default function SwapFlow() {
                 <h3 className={`text-xl font-bold mt-10 mb-2 ${
                   theme === "dark" ? "text-white" : "text-gray-900"
                 }`}>
-                  {['finished', 'success', 'completed'].includes(typeof transactionStatus === 'string' ? transactionStatus.toLowerCase() : (transactionStatus?.status || transactionStatus?.result || '').toLowerCase()) 
-                    ? '🎉 Transaction Complete!' 
-                    : 'Send Payment to Complete Swap'}
+                  {(() => {
+                    const provider = transactionResult?.provider || 'CHANGELLY';
+                    const statusValue = typeof transactionStatus === 'string' 
+                      ? transactionStatus.toLowerCase() 
+                      : (transactionStatus?.status || transactionStatus?.result || '').toLowerCase();
+                    
+                    const isComplete = provider === 'EXOLIX'
+                      ? statusValue === 'success'
+                      : ['finished', 'success', 'completed'].includes(statusValue);
+                    
+                    return isComplete ? '🎉 Transaction Complete!' : 'Send Payment to Complete Swap';
+                  })()}
                 </h3>
                 <p className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-                  {['finished', 'success', 'completed'].includes(typeof transactionStatus === 'string' ? transactionStatus.toLowerCase() : (transactionStatus?.status || transactionStatus?.result || '').toLowerCase())
-                    ? 'Your swap has been processed successfully'
-                    : 'Transfer the exact amount to the address below'}
+                  {(() => {
+                    const provider = transactionResult?.provider || 'CHANGELLY';
+                    const statusValue = typeof transactionStatus === 'string' 
+                      ? transactionStatus.toLowerCase() 
+                      : (transactionStatus?.status || transactionStatus?.result || '').toLowerCase();
+                    
+                    const isComplete = provider === 'EXOLIX'
+                      ? statusValue === 'success'
+                      : ['finished', 'success', 'completed'].includes(statusValue);
+                    
+                    return isComplete 
+                      ? 'Your swap has been processed successfully'
+                      : 'Transfer the exact amount to the address below';
+                  })()}
                 </p>
               </div>
 
@@ -920,92 +1111,109 @@ export default function SwapFlow() {
                   </div>
 
                   <div className="space-y-2">
-                    {[
-                      { key: 'waiting', label: 'Waiting for Payment', icon: Clock },
-                      { key: 'confirming', label: 'Confirming Transaction', icon: Loader2 },
-                      { key: 'exchanging', label: 'Exchanging Currencies', icon: ArrowDownUp },
-                      { key: 'sending', label: 'Sending to Your Wallet', icon: Check }
-                    ].map((step, idx) => {
+                    {(() => {
+                      const provider = transactionResult?.provider || 'CHANGELLY';
                       const currentStatusValue = typeof transactionStatus === 'string' 
                         ? transactionStatus.toLowerCase() 
                         : (transactionStatus?.status || transactionStatus?.result || '').toLowerCase();
-                      const statusSteps = ['waiting', 'confirming', 'exchanging', 'sending'];
-                      const currentIndex = statusSteps.indexOf(currentStatusValue);
-                      const isActive = currentStatusValue === step.key;
-                      const isPassed = currentIndex > idx || ['finished', 'success', 'completed'].includes(currentStatusValue);
-                      const Icon = step.icon;
                       
-                      return (
-                        <div key={step.key} className={`relative flex items-center gap-3 p-3 rounded-xl transition-all duration-300 ${
-                          isActive 
-                            ? theme === "dark" 
-                              ? "bg-indigo-600/20 border-2 border-indigo-500/50 shadow-lg shadow-indigo-500/20" 
-                              : "bg-indigo-50 border-2 border-indigo-400 shadow-lg shadow-indigo-400/20"
-                            : isPassed
-                              ? theme === "dark"
-                                ? "bg-green-600/10 border border-green-500/30"
-                                : "bg-green-50 border border-green-300"
-                              : theme === "dark"
-                                ? "bg-gray-800/30 border border-gray-700/30"
-                                : "bg-gray-100 border border-gray-200"
-                        }`}>
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
+                      // Define steps based on provider
+                      const steps = provider === 'EXOLIX' 
+                        ? [
+                            { key: 'wait', label: 'Waiting for Payment', icon: Clock },
+                            { key: 'confirmation', label: 'Confirming Deposit', icon: Loader2 },
+                            { key: 'exchanging', label: 'Exchanging Currencies', icon: ArrowDownUp },
+                            { key: 'sending', label: 'Sending to Your Wallet', icon: Check }
+                          ]
+                        : [
+                            { key: 'waiting', label: 'Waiting for Payment', icon: Clock },
+                            { key: 'confirming', label: 'Confirming Transaction', icon: Loader2 },
+                            { key: 'exchanging', label: 'Exchanging Currencies', icon: ArrowDownUp },
+                            { key: 'sending', label: 'Sending to Your Wallet', icon: Check }
+                          ];
+                      
+                      const completedStatuses = provider === 'EXOLIX' 
+                        ? ['success'] 
+                        : ['finished', 'success', 'completed'];
+                      
+                      const currentIndex = steps.findIndex(s => s.key === currentStatusValue);
+                      
+                      return steps.map((step, idx) => {
+                        const isActive = currentStatusValue === step.key;
+                        const isPassed = currentIndex > idx || completedStatuses.includes(currentStatusValue);
+                        const Icon = step.icon;
+                        
+                        return (
+                          <div key={step.key} className={`relative flex items-center gap-3 p-3 rounded-xl transition-all duration-300 ${
                             isActive 
                               ? theme === "dark" 
-                                ? "bg-indigo-600 shadow-lg shadow-indigo-500/50" 
-                                : "bg-indigo-500 shadow-lg shadow-indigo-400/50"
+                                ? "bg-indigo-600/20 border-2 border-indigo-500/50 shadow-lg shadow-indigo-500/20" 
+                                : "bg-indigo-50 border-2 border-indigo-400 shadow-lg shadow-indigo-400/20"
                               : isPassed
-                                ? theme === "dark" ? "bg-green-600" : "bg-green-500"
-                                : theme === "dark" ? "bg-gray-700" : "bg-gray-300"
+                                ? theme === "dark"
+                                  ? "bg-green-600/10 border border-green-500/30"
+                                  : "bg-green-50 border border-green-300"
+                                : theme === "dark"
+                                  ? "bg-gray-800/30 border border-gray-700/30"
+                                  : "bg-gray-100 border border-gray-200"
                           }`}>
-                            {isPassed && !isActive ? (
-                              <Check className="w-5 h-5 text-white" />
-                            ) : isActive ? (
-                              <Icon className={`w-5 h-5 text-white ${step.key !== 'waiting' ? 'animate-spin' : ''}`} />
-                            ) : (
-                              <div className={`w-2 h-2 rounded-full ${
-                                theme === "dark" ? "bg-gray-500" : "bg-gray-400"
-                              }`} />
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
+                              isActive 
+                                ? theme === "dark" 
+                                  ? "bg-indigo-600 shadow-lg shadow-indigo-500/50" 
+                                  : "bg-indigo-500 shadow-lg shadow-indigo-400/50"
+                                : isPassed
+                                  ? theme === "dark" ? "bg-green-600" : "bg-green-500"
+                                  : theme === "dark" ? "bg-gray-700" : "bg-gray-300"
+                            }`}>
+                              {isPassed && !isActive ? (
+                                <Check className="w-5 h-5 text-white" />
+                              ) : isActive ? (
+                                <Icon className={`w-5 h-5 text-white ${step.key !== 'wait' && step.key !== 'waiting' ? 'animate-spin' : ''}`} />
+                              ) : (
+                                <div className={`w-2 h-2 rounded-full ${
+                                  theme === "dark" ? "bg-gray-500" : "bg-gray-400"
+                                }`} />
+                              )}
+                            </div>
+                            
+                            <div className="flex-1">
+                              <p className={`text-sm font-medium transition-colors ${
+                                isActive 
+                                  ? theme === "dark" ? "text-indigo-300" : "text-indigo-700"
+                                  : isPassed
+                                    ? theme === "dark" ? "text-green-300" : "text-green-700"
+                                    : theme === "dark" ? "text-gray-500" : "text-gray-500"
+                              }`}>
+                                {step.label}
+                              </p>
+                            </div>
+                            
+                            {isActive && (
+                              <div className="flex gap-1">
+                                <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+                                  theme === "dark" ? "bg-indigo-400" : "bg-indigo-600"
+                                }`} style={{ animationDelay: '0ms' }} />
+                                <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+                                  theme === "dark" ? "bg-indigo-400" : "bg-indigo-600"
+                                }`} style={{ animationDelay: '150ms' }} />
+                                <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+                                  theme === "dark" ? "bg-indigo-400" : "bg-indigo-600"
+                                }`} style={{ animationDelay: '300ms' }} />
+                              </div>
+                            )}
+                            
+                            {isActive && (
+                              <div className={`absolute inset-0 rounded-xl animate-pulse ${
+                                theme === "dark" 
+                                  ? "bg-indigo-500/10" 
+                                  : "bg-indigo-400/10"
+                              }`} style={{ animationDuration: '2s' }} />
                             )}
                           </div>
-                          
-                          <div className="flex-1">
-                            <p className={`text-sm font-medium transition-colors ${
-                              isActive 
-                                ? theme === "dark" ? "text-indigo-300" : "text-indigo-700"
-                                : isPassed
-                                  ? theme === "dark" ? "text-green-300" : "text-green-700"
-                                  : theme === "dark" ? "text-gray-500" : "text-gray-500"
-                            }`}>
-                              {step.label}
-                            </p>
-                          </div>
-                          
-                          {isActive && (
-                            <div className="flex gap-1">
-                              <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${
-                                theme === "dark" ? "bg-indigo-400" : "bg-indigo-600"
-                              }`} style={{ animationDelay: '0ms' }} />
-                              <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${
-                                theme === "dark" ? "bg-indigo-400" : "bg-indigo-600"
-                              }`} style={{ animationDelay: '150ms' }} />
-                              <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${
-                                theme === "dark" ? "bg-indigo-400" : "bg-indigo-600"
-                              }`} style={{ animationDelay: '300ms' }} />
-                            </div>
-                          )}
-                          
-                          {/* Animated pulse for active state */}
-                          {isActive && (
-                            <div className={`absolute inset-0 rounded-xl animate-pulse ${
-                              theme === "dark" 
-                                ? "bg-indigo-500/10" 
-                                : "bg-indigo-400/10"
-                            }`} style={{ animationDuration: '2s' }} />
-                          )}
-                        </div>
-                      );
-                    })}
+                        );
+                      });
+                    })()}
                   </div>
                 </div>
               )}
@@ -1024,38 +1232,88 @@ export default function SwapFlow() {
               )}
 
               {/* Completed - Show Details Button */}
-              {['finished', 'success', 'completed'].includes(typeof transactionStatus === 'string' ? transactionStatus.toLowerCase() : (transactionStatus?.status || transactionStatus?.result || '').toLowerCase()) && (
-                <button
-                  onClick={() => setCurrentStep(4)}
-                  className={`w-full py-3 text-white font-semibold rounded-2xl transition-all shadow-lg ${
-                    theme === "dark" 
-                      ? "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800" 
-                      : "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
-                  }`}
-                >
-                  <span className="flex items-center justify-center gap-2">
-                    <Check className="w-5 h-5" /> View Transaction Details
-                  </span>
-                </button>
-              )}
+              {(() => {
+                const provider = transactionResult?.provider || 'CHANGELLY';
+                const statusValue = typeof transactionStatus === 'string' 
+                  ? transactionStatus.toLowerCase() 
+                  : (transactionStatus?.status || transactionStatus?.result || '').toLowerCase();
+                
+                const isComplete = provider === 'EXOLIX'
+                  ? statusValue === 'success'
+                  : ['finished', 'success', 'completed'].includes(statusValue);
+                
+                return isComplete && (
+                  <button
+                    onClick={() => setCurrentStep(4)}
+                    className={`w-full py-3 text-white font-semibold rounded-2xl transition-all shadow-lg ${
+                      theme === "dark" 
+                        ? "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800" 
+                        : "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
+                    }`}
+                  >
+                    <span className="flex items-center justify-center gap-2">
+                      <Check className="w-5 h-5" /> View Transaction Details
+                    </span>
+                  </button>
+                );
+              })()}
 
               {/* Back button */}
               <button
                 onClick={goBack}
-                disabled={transactionStatus && !['finished', 'success', 'completed', 'failed', 'expired'].includes((transactionStatus?.status || '').toLowerCase())}
+                disabled={(() => {
+                  if (!transactionStatus) return false;
+                  
+                  const provider = transactionResult?.provider || 'CHANGELLY';
+                  const statusValue = (transactionStatus?.status || '').toLowerCase();
+                  
+                  const completedStatuses = provider === 'EXOLIX'
+                    ? ['success', 'overdue', 'refund', 'refunded']
+                    : ['finished', 'success', 'completed', 'failed', 'expired'];
+                  
+                  return transactionStatus && !completedStatuses.includes(statusValue);
+                })()}
                 className={`w-full py-3 font-semibold rounded-2xl transition-colors ${
-                  transactionStatus && !['finished', 'success', 'completed', 'failed', 'expired'].includes((transactionStatus?.status || '').toLowerCase())
-                    ? theme === "dark"
-                      ? "bg-gray-800 text-gray-600 cursor-not-allowed opacity-50"
-                      : "bg-gray-200 text-gray-400 cursor-not-allowed opacity-50"
-                    : theme === "dark" 
-                      ? "bg-gray-700 hover:bg-gray-600 text-white" 
-                      : "bg-gray-300 hover:bg-gray-400 text-gray-900"
-                }`}
+                  (() => {
+                    if (!transactionStatus) {
+                      return theme === "dark" 
+                        ? "bg-gray-700 hover:bg-gray-600 text-white" 
+                        : "bg-gray-300 hover:bg-gray-400 text-gray-900";
+                    }
+                    
+                    const provider = transactionResult?.provider || 'CHANGELLY';
+                    const statusValue = (transactionStatus?.status || '').toLowerCase();
+                    
+                    const completedStatuses = provider === 'EXOLIX'
+                      ? ['success', 'overdue', 'refund', 'refunded']
+                      : ['finished', 'success', 'completed', 'failed', 'expired'];
+                    
+                    const isInProgress = !completedStatuses.includes(statusValue);
+                    
+                    return isInProgress
+                      ? theme === "dark"
+                        ? "bg-gray-800 text-gray-600 cursor-not-allowed opacity-50"
+                        : "bg-gray-200 text-gray-400 cursor-not-allowed opacity-50"
+                      : theme === "dark" 
+                        ? "bg-gray-700 hover:bg-gray-600 text-white" 
+                        : "bg-gray-300 hover:bg-gray-400 text-gray-900";
+                  })()}
+                `}
               >
-                {transactionStatus && !['finished', 'success', 'completed', 'failed', 'expired'].includes((transactionStatus?.status || '').toLowerCase())
-                  ? 'Transaction in Progress...'
-                  : 'Cancel & Go Back'}
+                {(() => {
+                  if (!transactionStatus) return 'Cancel & Go Back';
+                  
+                  const provider = transactionResult?.provider || 'CHANGELLY';
+                  const statusValue = (transactionStatus?.status || '').toLowerCase();
+                  
+                  const completedStatuses = provider === 'EXOLIX'
+                    ? ['success', 'overdue', 'refund', 'refunded']
+                    : ['finished', 'success', 'completed', 'failed', 'expired'];
+                  
+                  const isInProgress = !completedStatuses.includes(statusValue);
+                  
+                  return isInProgress ? 'Transaction in Progress...' : 'Cancel & Go Back';
+                })()}
               </button>
             </div>
           )}

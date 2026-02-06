@@ -90,6 +90,10 @@ export default function PaymentMethodSelect({
                   key={idx}
                   onClick={() => handleSelect(method)}
                   className={`flex items-center justify-between w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-[#2a2b2f] transition ${
+                    idx === 0 ? "rounded-t-2xl" : ""
+                  } ${
+                    idx === availableMethods.length - 1 ? "rounded-b-2xl" : ""
+                  } ${
                     isSelected
                       ? "bg-gray-100 dark:bg-[#2a2b2f] text-blue-600 dark:text-blue-400"
                       : "text-gray-800 dark:text-gray-200"

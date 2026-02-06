@@ -115,35 +115,64 @@ export default function TransactionHistory() {
   const handleExport = async (format = "csv") => {
     try {
       const tokens = JSON.parse(localStorage.getItem("bitexly_tokens") || "{}");
-      const response = await apiClient.get(
-        `/users/transactions/export/?format=${format}`,
-        {
-          headers: { Authorization: `Bearer ${tokens.access}` },
-          responseType: format === "csv" ? "blob" : "json",
-        }
-      );
-
+      
       if (format === "csv") {
-        const url = window.URL.createObjectURL(new Blob([response.data]));
+        // For CSV, we need to handle blob response
+        const response = await fetch(
+          `${apiClient.defaults.baseURL}/users/transactions/export/?export_format=csv`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${tokens.access}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to export CSV");
+        }
+
+        // Get the blob
+        const blob = await response.blob();
+        
+        // Create download link
+        const url = window.URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.setAttribute("download", `transactions_${new Date().toISOString().split("T")[0]}.csv`);
+        link.setAttribute(
+          "download",
+          `transactions_${new Date().toISOString().split("T")[0]}.csv`
+        );
         document.body.appendChild(link);
         link.click();
         link.remove();
+        window.URL.revokeObjectURL(url);
       } else {
+        // For JSON, use apiClient normally
+        const response = await apiClient.get(
+          `/users/transactions/export/?export_format=json`,
+          {
+            headers: { Authorization: `Bearer ${tokens.access}` },
+          }
+        );
+
         const dataStr = JSON.stringify(response.data, null, 2);
         const blob = new Blob([dataStr], { type: "application/json" });
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.setAttribute("download", `transactions_${new Date().toISOString().split("T")[0]}.json`);
+        link.setAttribute(
+          "download",
+          `transactions_${new Date().toISOString().split("T")[0]}.json`
+        );
         document.body.appendChild(link);
         link.click();
         link.remove();
+        window.URL.revokeObjectURL(url);
       }
     } catch (err) {
       console.error("Export failed:", err);
+      alert("Failed to export transactions. Please try again.");
     }
   };
 
