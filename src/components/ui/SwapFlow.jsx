@@ -157,7 +157,7 @@ export default function SwapFlow() {
       quotePromises.push(
         apiClient.post("/exolix/rate/", {
           coinFrom: fromCoin.toUpperCase(),
-          networkFrom: fromCoin.toUpperCase(), // Using same as coin for simplicity
+          networkFrom: fromCoin.toUpperCase(),
           coinTo: toCoin.toUpperCase(),
           networkTo: toCoin.toUpperCase(),
           amount: String(fromAmount),
@@ -187,6 +187,72 @@ export default function SwapFlow() {
         })
       );
 
+      // 3. LetsExchange quote
+      quotePromises.push(
+        apiClient.post("/letsexchange/rate/", {
+          coinFrom: fromCoin.toUpperCase(),
+          coinTo: toCoin.toUpperCase(),
+          amount: parseFloat(fromAmount),
+          float: true
+        })
+        .then(res => {
+          const quote = res.data?.quote;
+          if (!quote || !quote.estimatedAmount) return null;
+
+          return {
+            provider: 'LETSEXCHANGE',
+            serviceProvider: 'LetsExchange',
+            estimatedAmount: quote.estimatedAmount,
+            rate: quote.rate,
+            minAmount: quote.minAmount,
+            maxAmount: quote.maxAmount,
+            withdrawalFee: quote.withdrawalFee,
+            rateId: quote.rateId,
+            networkFee: null,
+            fee: null,
+            rawData: quote,
+            logo: 'providers/letsexchange.png'
+          };
+        })
+        .catch(err => {
+          console.error("LetsExchange quote error:", err);
+          return null;
+        })
+      );
+
+      // 🆕 4. SimpleSwap quote
+      quotePromises.push(
+        apiClient.post("/simpleswap/rate/", {
+          coinFrom: fromCoin.toUpperCase(),
+          coinTo: toCoin.toUpperCase(),
+          amount: parseFloat(fromAmount),
+          fixed: false
+        })
+        .then(res => {
+          const quote = res.data?.quote;
+          if (!quote || !quote.estimatedAmount) return null;
+
+          return {
+            provider: 'SIMPLESWAP',
+            serviceProvider: 'SimpleSwap',
+            estimatedAmount: quote.estimatedAmount,
+            rate: quote.rate,
+            minAmount: quote.minAmount,
+            maxAmount: quote.maxAmount,
+            rateId: quote.rateId,
+            validUntil: quote.validUntil,
+            networkFee: null,
+            fee: null,
+            rawData: quote,
+            logo: 'providers/simpleswap.png'
+          };
+        })
+        .catch(err => {
+          console.error("SimpleSwap quote error:", err);
+          return null;
+        })
+      );
+
       const results = await Promise.all(quotePromises);
       const validQuotes = results.filter(q => q !== null);
 
@@ -205,13 +271,11 @@ export default function SwapFlow() {
 
       // Auto-select best rate or keep current provider if still available
       if (!selectedProvider) {
-        // Select provider with best rate (highest estimated amount)
         const bestQuote = validQuotes.reduce((best, current) => 
           Number(current.estimatedAmount) > Number(best.estimatedAmount) ? current : best
         );
         setSelectedProvider(bestQuote);
       } else {
-        // Keep same provider if it still exists in new quotes
         const stillExists = validQuotes.find(
           q => q.provider === selectedProvider.provider
         );
@@ -352,14 +416,14 @@ export default function SwapFlow() {
   // Create transaction based on selected provider
   const handleCreateTransaction = async () => {
     if (!fromAmount || !walletAddress || !addressValid || !selectedProvider) return;
-
+  
     setCreatingTransaction(true);
     setTransactionError(null);
-
+  
     try {
       const providerName = selectedProvider.provider.toUpperCase();
       let result;
-
+  
       if (providerName === 'CHANGELLY') {
         // Changelly transaction
         const res = await apiClient.post("/users/api/changelly/create-transaction/", {
@@ -368,10 +432,10 @@ export default function SwapFlow() {
           amount: String(fromAmount),
           wallet_address: walletAddress,
         });
-
+  
         result = res.data?.result;
         if (!result) throw new Error("Invalid response from Changelly");
-
+  
       } else if (providerName === 'EXOLIX') {
         // Exolix transaction
         const res = await apiClient.post("/exolix/create-transaction/", {
@@ -383,11 +447,10 @@ export default function SwapFlow() {
           withdrawalAddress: walletAddress,
           rateType: selectedProvider.rateType || "float"
         });
-
+  
         const exolixData = res.data?.transaction;
         if (!exolixData) throw new Error("Invalid response from Exolix");
-
-        // Map Exolix response to match Changelly structure for UI consistency
+  
         result = {
           id: exolixData.id,
           payinAddress: exolixData.depositAddress,
@@ -398,15 +461,69 @@ export default function SwapFlow() {
           status: exolixData.status,
           provider: 'EXOLIX'
         };
-
+  
+      } else if (providerName === 'LETSEXCHANGE') {
+        // 🆕 LetsExchange transaction
+        const res = await apiClient.post("/letsexchange/create-transaction/", {
+          coinFrom: fromCoin.toUpperCase(),
+          coinTo: toCoin.toUpperCase(),
+          amount: parseFloat(fromAmount),
+          withdrawalAddress: walletAddress,
+          withdrawalExtraId: "",
+          float: true,
+          rateId: selectedProvider.rateId || ""
+        });
+  
+        const letsexchangeData = res.data?.transaction;
+        if (!letsexchangeData) throw new Error("Invalid response from LetsExchange");
+  
+        result = {
+          id: letsexchangeData.transaction_id,
+          payinAddress: letsexchangeData.deposit,
+          payoutAddress: letsexchangeData.withdrawal,
+          payinExtraId: letsexchangeData.deposit_extra_id || null,
+          amountFrom: letsexchangeData.deposit_amount,
+          amountTo: letsexchangeData.withdrawal_amount,
+          status: letsexchangeData.status,
+          provider: 'LETSEXCHANGE'
+        };
+  
+      } else if (providerName === 'SIMPLESWAP') {
+        // 🆕 SimpleSwap transaction
+        const res = await apiClient.post("/simpleswap/create-transaction/", {
+          coinFrom: fromCoin.toUpperCase(),
+          coinTo: toCoin.toUpperCase(),
+          amount: parseFloat(fromAmount),
+          withdrawalAddress: walletAddress,
+          withdrawalExtraId: "",
+          userRefundAddress: "",
+          userRefundExtraId: "",
+          fixed: false,
+          rateId: selectedProvider.rateId || null
+        });
+  
+        const simpleswapData = res.data?.transaction;
+        if (!simpleswapData) throw new Error("Invalid response from SimpleSwap");
+  
+        result = {
+          id: simpleswapData.publicId,
+          payinAddress: simpleswapData.addressFrom,
+          payoutAddress: simpleswapData.addressTo,
+          payinExtraId: simpleswapData.extraIdFrom || null,
+          amountFrom: simpleswapData.amountFrom,
+          amountTo: simpleswapData.amountTo,
+          status: simpleswapData.status,
+          provider: 'SIMPLESWAP'
+        };
+  
       } else {
         throw new Error(`Unknown provider: ${providerName}`);
       }
-
+  
       // Add provider info to result
       result.provider = providerName;
       setTransactionResult(result);
-
+  
     } catch (err) {
       console.error("Transaction error:", err);
       setTransactionError(
@@ -425,18 +542,17 @@ export default function SwapFlow() {
     try {
       const providerName = provider?.toUpperCase() || 'CHANGELLY';
       let result;
-
+  
       if (providerName === 'CHANGELLY') {
         const res = await apiClient.post("/users/api/changelly/confirm-transaction/", {
           transaction_id: transactionId,
         });
         result = res.data?.result;
-
+  
       } else if (providerName === 'EXOLIX') {
         const res = await apiClient.get(`/exolix/transaction/${transactionId}/`);
         const exolixData = res.data?.transaction;
         
-        // Map Exolix status to Changelly-like structure
         result = {
           id: exolixData.id,
           status: exolixData.status,
@@ -447,12 +563,42 @@ export default function SwapFlow() {
           payinHash: exolixData.hashIn?.hash || null,
           provider: 'EXOLIX'
         };
+  
+      } else if (providerName === 'LETSEXCHANGE') {
+        // 🆕 LetsExchange status
+        const res = await apiClient.get(`/letsexchange/transaction/${transactionId}/`);
+        const letsexchangeData = res.data?.transaction;
+        
+        result = {
+          id: letsexchangeData.transaction_id,
+          status: letsexchangeData.status,
+          amountFrom: letsexchangeData.deposit_amount,
+          amountTo: letsexchangeData.withdrawal_amount,
+          payoutHash: letsexchangeData.hash_out || null,
+          payinHash: letsexchangeData.hash_in || null,
+          provider: 'LETSEXCHANGE'
+        };
+  
+      } else if (providerName === 'SIMPLESWAP') {
+        // 🆕 SimpleSwap status
+        const res = await apiClient.get(`/simpleswap/exchange/${transactionId}/`);
+        const simpleswapData = res.data?.transaction;
+        
+        result = {
+          id: simpleswapData.publicId,
+          status: simpleswapData.status,
+          amountFrom: simpleswapData.amountFrom,
+          amountTo: simpleswapData.amountTo,
+          payoutHash: simpleswapData.txTo || null,
+          payinHash: simpleswapData.txFrom || null,
+          provider: 'SIMPLESWAP'
+        };
       }
-
+  
       if (!result) {
         throw new Error("Invalid response from server");
       }
-
+  
       return result;
     } catch (err) {
       console.error("Status check error:", err);
@@ -474,9 +620,11 @@ export default function SwapFlow() {
           
           // Check if complete based on provider
           const statusValue = status?.status || status;
-          const isComplete = provider === 'EXOLIX'
-            ? statusValue === 'success'
-            : ['finished', 'success', 'completed'].includes(statusValue);
+          const isComplete = 
+            provider === 'EXOLIX' ? statusValue === 'success' :
+            provider === 'LETSEXCHANGE' ? statusValue === 'success' :
+            provider === 'SIMPLESWAP' ? statusValue === 'finished' :
+            ['finished', 'success', 'completed'].includes(statusValue);
           
           if (isComplete) {
             setCurrentStep(4);
@@ -494,13 +642,17 @@ export default function SwapFlow() {
           
           // Move to step 4 if transaction is complete
           const statusValue = status?.status || status;
-          const isComplete = provider === 'EXOLIX'
-            ? statusValue === 'success'
-            : ['finished', 'success', 'completed'].includes(statusValue);
+          const isComplete = 
+            provider === 'EXOLIX' ? statusValue === 'success' :
+            provider === 'LETSEXCHANGE' ? statusValue === 'success' :
+            provider === 'SIMPLESWAP' ? statusValue === 'finished' :
+            ['finished', 'success', 'completed'].includes(statusValue);
           
-          const isFailed = provider === 'EXOLIX'
-            ? ['overdue', 'refund', 'refunded'].includes(statusValue)
-            : ['failed', 'expired'].includes(statusValue);
+          const isFailed = 
+            provider === 'EXOLIX' ? ['overdue', 'refund', 'refunded'].includes(statusValue) :
+            provider === 'LETSEXCHANGE' ? ['aml_check_failed', 'overdue', 'error', 'refund'].includes(statusValue) :
+            provider === 'SIMPLESWAP' ? ['failed', 'refunded', 'expired'].includes(statusValue) :
+            ['failed', 'expired'].includes(statusValue);
           
           if (isComplete) {
             clearInterval(interval);
@@ -512,9 +664,9 @@ export default function SwapFlow() {
           console.error("Polling error:", err);
         }
       }, 10000);
-
+  
       setPollingInterval(interval);
-
+  
       return () => {
         clearTimeout(initialTimeout);
         clearInterval(interval);
@@ -549,6 +701,10 @@ export default function SwapFlow() {
     
     if (provider === 'EXOLIX') {
       return statusValue === 'success';
+    } else if (provider === 'LETSEXCHANGE') {
+      return statusValue === 'success';
+    } else if (provider === 'SIMPLESWAP') {
+      return statusValue === 'finished';
     } else {
       return ['finished', 'success', 'completed'].includes(statusValue);
     }
@@ -1118,23 +1274,37 @@ export default function SwapFlow() {
                         : (transactionStatus?.status || transactionStatus?.result || '').toLowerCase();
                       
                       // Define steps based on provider
-                      const steps = provider === 'EXOLIX' 
-                        ? [
-                            { key: 'wait', label: 'Waiting for Payment', icon: Clock },
-                            { key: 'confirmation', label: 'Confirming Deposit', icon: Loader2 },
-                            { key: 'exchanging', label: 'Exchanging Currencies', icon: ArrowDownUp },
-                            { key: 'sending', label: 'Sending to Your Wallet', icon: Check }
-                          ]
-                        : [
-                            { key: 'waiting', label: 'Waiting for Payment', icon: Clock },
-                            { key: 'confirming', label: 'Confirming Transaction', icon: Loader2 },
-                            { key: 'exchanging', label: 'Exchanging Currencies', icon: ArrowDownUp },
-                            { key: 'sending', label: 'Sending to Your Wallet', icon: Check }
-                          ];
-                      
-                      const completedStatuses = provider === 'EXOLIX' 
-                        ? ['success'] 
-                        : ['finished', 'success', 'completed'];
+                      const steps = 
+                        provider === 'EXOLIX' ? [
+                          { key: 'wait', label: 'Waiting for Payment', icon: Clock },
+                          { key: 'confirmation', label: 'Confirming Deposit', icon: Loader2 },
+                          { key: 'exchanging', label: 'Exchanging Currencies', icon: ArrowDownUp },
+                          { key: 'sending', label: 'Sending to Your Wallet', icon: Check }
+                        ] :
+                        provider === 'LETSEXCHANGE' ? [
+                          { key: 'wait', label: 'Waiting for Payment', icon: Clock },
+                          { key: 'confirmation', label: 'Confirming Deposit', icon: Loader2 },
+                          { key: 'exchanging', label: 'Exchanging Currencies', icon: ArrowDownUp },
+                          { key: 'sending', label: 'Sending to Your Wallet', icon: Check }
+                        ] :
+                        provider === 'SIMPLESWAP' ? [
+                          { key: 'waiting', label: 'Waiting for Payment', icon: Clock },
+                          { key: 'confirming', label: 'Confirming Deposit', icon: Loader2 },
+                          { key: 'exchanging', label: 'Exchanging Currencies', icon: ArrowDownUp },
+                          { key: 'sending', label: 'Sending to Your Wallet', icon: Check }
+                        ] :
+                        [
+                          { key: 'waiting', label: 'Waiting for Payment', icon: Clock },
+                          { key: 'confirming', label: 'Confirming Transaction', icon: Loader2 },
+                          { key: 'exchanging', label: 'Exchanging Currencies', icon: ArrowDownUp },
+                          { key: 'sending', label: 'Sending to Your Wallet', icon: Check }
+                        ];
+
+                      const completedStatuses = 
+                        provider === 'EXOLIX' ? ['success'] :
+                        provider === 'LETSEXCHANGE' ? ['success'] :
+                        provider === 'SIMPLESWAP' ? ['finished'] :
+                        ['finished', 'success', 'completed'];
                       
                       const currentIndex = steps.findIndex(s => s.key === currentStatusValue);
                       

@@ -57,6 +57,8 @@ const ProvidersSection = () => {
     { name: "Changelly", logo: "changelly" },
     { name: "Finchpay", logo: "finchpay" },
     { name: "Exolix", logo: "exolix" },
+    { name: "LetsExchange", logo: "letsexchange" },
+    { name: "SimpleSwap", logo: "simpleswap" },
   ];
 
   return (
